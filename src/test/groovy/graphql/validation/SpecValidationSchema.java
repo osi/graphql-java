@@ -41,20 +41,6 @@ public class SpecValidationSchema {
                                                                     .name("CatCommand")
                                                                     .value("JUMP")
                                                                     .build();
-    public static final GraphQLObjectType human = GraphQLObjectType.newObject()
-                                                                   .name("Human")
-                                                                   .field(newFieldDefinition().name("name").type(
-                                                                           nonNull(Scalars.GraphQLString)))
-                                                                   .withInterface(SpecValidationSchema.sentient)
-                                                                   .build();
-    public static final GraphQLObjectType alien = GraphQLObjectType.newObject()
-                                                                   .name("Alien")
-                                                                   .field(newFieldDefinition().name("name").type(
-                                                                           nonNull(Scalars.GraphQLString)))
-                                                                   .field(newFieldDefinition().name("homePlanet").type(
-                                                                           Scalars.GraphQLString))
-                                                                   .withInterface(SpecValidationSchema.sentient)
-                                                                   .build();
     public static final GraphQLInterfaceType sentient = GraphQLInterfaceType.newInterface()
                                                                             .name("Sentient")
                                                                             .field(newFieldDefinition().name(
@@ -71,6 +57,35 @@ public class SpecValidationSchema {
                                                                                 }
                                                                             })
                                                                             .build();
+    public static final GraphQLInterfaceType pet = GraphQLInterfaceType.newInterface()
+                                                                       .name("Pet")
+                                                                       .field(newFieldDefinition().name("name").type(
+                                                                               nonNull(Scalars.GraphQLString)))
+                                                                       .typeResolver(new TypeResolver() {
+                                                                           @Override
+                                                                           public GraphQLObjectType getType(TypeResolutionEnvironment env) {
+                                                                               if (env.getObject() instanceof Dog)
+                                                                                   return dog;
+                                                                               if (env.getObject() instanceof Cat)
+                                                                                   return cat;
+                                                                               return null;
+                                                                           }
+                                                                       })
+                                                                       .build();
+    public static final GraphQLObjectType human = GraphQLObjectType.newObject()
+                                                                   .name("Human")
+                                                                   .field(newFieldDefinition().name("name").type(
+                                                                           nonNull(Scalars.GraphQLString)))
+                                                                   .withInterface(SpecValidationSchema.sentient)
+                                                                   .build();
+    public static final GraphQLObjectType alien = GraphQLObjectType.newObject()
+                                                                   .name("Alien")
+                                                                   .field(newFieldDefinition().name("name").type(
+                                                                           nonNull(Scalars.GraphQLString)))
+                                                                   .field(newFieldDefinition().name("homePlanet").type(
+                                                                           Scalars.GraphQLString))
+                                                                   .withInterface(SpecValidationSchema.sentient)
+                                                                   .build();
     public static final GraphQLArgument dogCommandArg = GraphQLArgument.newArgument()
                                                                        .name("dogCommand")
                                                                        .type(nonNull(dogCommand))
@@ -118,21 +133,6 @@ public class SpecValidationSchema {
                                                                                                     catCommandArg)))
                                                                  .withInterface(SpecValidationSchema.pet)
                                                                  .build();
-    public static final GraphQLInterfaceType pet = GraphQLInterfaceType.newInterface()
-                                                                       .name("Pet")
-                                                                       .field(newFieldDefinition().name("name").type(
-                                                                               nonNull(Scalars.GraphQLString)))
-                                                                       .typeResolver(new TypeResolver() {
-                                                                           @Override
-                                                                           public GraphQLObjectType getType(TypeResolutionEnvironment env) {
-                                                                               if (env.getObject() instanceof Dog)
-                                                                                   return dog;
-                                                                               if (env.getObject() instanceof Cat)
-                                                                                   return cat;
-                                                                               return null;
-                                                                           }
-                                                                       })
-                                                                       .build();
     public static final GraphQLUnionType catOrDog = GraphQLUnionType.newUnionType()
                                                                     .name("CatOrDog")
                                                                     .possibleTypes(cat, dog)
