@@ -12,12 +12,12 @@ import graphql.execution.instrumentation.parameters.InstrumentationFieldFetchPar
 import graphql.execution.instrumentation.parameters.InstrumentationValidationParameters;
 import graphql.language.Document;
 import graphql.validation.ValidationError;
+import reactor.core.publisher.Mono;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 import static graphql.execution.instrumentation.SimpleInstrumentationContext.whenCompleted;
 
@@ -34,15 +34,14 @@ public class TracingInstrumentation extends SimpleInstrumentation {
     }
 
     @Override
-    public CompletableFuture<ExecutionResult> instrumentExecutionResult(ExecutionResult executionResult, InstrumentationExecutionParameters parameters) {
+    public Mono<ExecutionResult> instrumentExecutionResult(ExecutionResult executionResult, InstrumentationExecutionParameters parameters) {
         Map<Object, Object> currentExt = executionResult.getExtensions();
 
         TracingSupport tracingSupport = parameters.getInstrumentationState();
-        Map<Object, Object> tracingMap = new LinkedHashMap<>();
-        tracingMap.putAll(currentExt == null ? Collections.emptyMap() : currentExt);
+        Map<Object, Object> tracingMap = new LinkedHashMap<>(currentExt == null ? Collections.emptyMap() : currentExt);
         tracingMap.put("tracing", tracingSupport.snapshotTracingData());
 
-        return CompletableFuture.completedFuture(new ExecutionResultImpl(executionResult.getData(), executionResult.getErrors(), tracingMap));
+        return Mono.just(new ExecutionResultImpl(executionResult.getData(), executionResult.getErrors(), tracingMap));
     }
 
     @Override

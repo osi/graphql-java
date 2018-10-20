@@ -65,7 +65,7 @@ class Issue739 extends Specification {
 
         ExecutionResult noVarResult = graphQL
                 .executeAsync(noVarInput)
-                .join()
+                .block()
 
         then:
 
@@ -81,7 +81,7 @@ class Issue739 extends Specification {
 
         ExecutionResult varResult = graphQL
             .executeAsync(varInput)
-            .join()
+            .block()
 
         then:
         varResult.data == null
@@ -101,7 +101,7 @@ class Issue739 extends Specification {
 
         varResult = graphQL
                 .executeAsync(varInput)
-                .join()
+                .block()
 
         then:
         varResult.data == null

@@ -3,15 +3,16 @@ package graphql.execution.defer;
 import graphql.Directives;
 import graphql.ExecutionResult;
 import graphql.Internal;
-import graphql.execution.reactive.SingleSubscriberPublisher;
 import graphql.language.Field;
 import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.Deque;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 /**
  * This provides support for @defer directives on fields that mean that results will be sent AFTER
@@ -22,7 +23,6 @@ public class DeferSupport {
 
     private final AtomicBoolean deferDetected = new AtomicBoolean(false);
     private final Deque<DeferredCall> deferredCalls = new ConcurrentLinkedDeque<>();
-    private final SingleSubscriberPublisher<ExecutionResult> publisher = new SingleSubscriberPublisher<>();
 
     public boolean checkForDeferDirective(List<Field> currentField) {
         for (Field field : currentField) {
@@ -31,24 +31,6 @@ public class DeferSupport {
             }
         }
         return false;
-    }
-
-    @SuppressWarnings("FutureReturnValueIgnored")
-    private void drainDeferredCalls() {
-        if (deferredCalls.isEmpty()) {
-            publisher.noMoreData();
-            return;
-        }
-        DeferredCall deferredCall = deferredCalls.pop();
-        CompletableFuture<ExecutionResult> future = deferredCall.invoke();
-        future.whenComplete((executionResult, exception) -> {
-            if (exception != null) {
-                publisher.offerError(exception);
-                return;
-            }
-            publisher.offer(executionResult);
-            drainDeferredCalls();
-        });
     }
 
     public void enqueue(DeferredCall deferredCall) {
@@ -66,7 +48,13 @@ public class DeferSupport {
      * @return the publisher of deferred results
      */
     public Publisher<ExecutionResult> startDeferredCalls() {
-        drainDeferredCalls();
-        return publisher;
+        return Flux.<Mono<ExecutionResult>>generate(sink -> {
+            if (deferredCalls.isEmpty()) {
+                sink.complete();
+            } else {
+                sink.next(deferredCalls.pop().invoke());
+            }
+        })
+                   .concatMap(Function.identity());
     }
 }

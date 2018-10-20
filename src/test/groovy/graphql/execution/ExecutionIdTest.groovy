@@ -3,9 +3,8 @@ package graphql.execution
 import graphql.ExecutionResult
 import graphql.GraphQL
 import graphql.StarWarsSchema
+import reactor.core.publisher.Mono
 import spock.lang.Specification
-
-import java.util.concurrent.CompletableFuture
 
 class ExecutionIdTest extends Specification {
 
@@ -13,7 +12,7 @@ class ExecutionIdTest extends Specification {
         ExecutionId executionId = null
 
         @Override
-        CompletableFuture<ExecutionResult> execute(ExecutionContext executionContext, ExecutionStrategyParameters parameters) {
+        Mono<ExecutionResult> execute(ExecutionContext executionContext, ExecutionStrategyParameters parameters) {
             executionId = executionContext.executionId
             return super.execute(executionContext, parameters)
         }

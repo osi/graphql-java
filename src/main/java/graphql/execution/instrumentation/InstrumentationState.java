@@ -7,4 +7,6 @@ package graphql.execution.instrumentation;
  * @see Instrumentation#createState()
  */
 public interface InstrumentationState {
+    InstrumentationState EMPTY = new InstrumentationState() {
+    };
 }

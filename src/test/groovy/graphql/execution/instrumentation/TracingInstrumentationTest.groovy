@@ -4,7 +4,6 @@ import graphql.GraphQL
 import graphql.StarWarsSchema
 import graphql.execution.AsyncExecutionStrategy
 import graphql.execution.AsyncSerialExecutionStrategy
-import graphql.execution.batched.BatchedExecutionStrategy
 import graphql.execution.instrumentation.tracing.TracingInstrumentation
 import spock.lang.Specification
 
@@ -93,6 +92,5 @@ class TracingInstrumentationTest extends Specification {
         testExecutionStrategy              | _
         new AsyncExecutionStrategy()       | _
         new AsyncSerialExecutionStrategy() | _
-        new BatchedExecutionStrategy()     | _
     }
 }

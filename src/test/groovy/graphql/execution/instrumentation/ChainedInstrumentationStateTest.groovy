@@ -4,18 +4,12 @@ import graphql.ExecutionResult
 import graphql.GraphQL
 import graphql.StarWarsSchema
 import graphql.execution.AsyncExecutionStrategy
-import graphql.execution.instrumentation.parameters.InstrumentationExecuteOperationParameters
-import graphql.execution.instrumentation.parameters.InstrumentationExecutionParameters
-import graphql.execution.instrumentation.parameters.InstrumentationExecutionStrategyParameters
-import graphql.execution.instrumentation.parameters.InstrumentationFieldFetchParameters
-import graphql.execution.instrumentation.parameters.InstrumentationFieldParameters
-import graphql.execution.instrumentation.parameters.InstrumentationValidationParameters
+import graphql.execution.instrumentation.parameters.*
 import graphql.language.Document
 import graphql.schema.DataFetcher
 import graphql.validation.ValidationError
+import reactor.core.publisher.Mono
 import spock.lang.Specification
-
-import java.util.concurrent.CompletableFuture
 
 class ChainedInstrumentationStateTest extends Specification {
 
@@ -92,7 +86,7 @@ class ChainedInstrumentationStateTest extends Specification {
         }
 
         @Override
-        CompletableFuture<ExecutionResult> instrumentExecutionResult(ExecutionResult executionResult, InstrumentationExecutionParameters parameters) {
+        Mono<ExecutionResult> instrumentExecutionResult(ExecutionResult executionResult, InstrumentationExecutionParameters parameters) {
             assertState(parameters.getInstrumentationState())
             return super.instrumentExecutionResult(executionResult, parameters)
         }

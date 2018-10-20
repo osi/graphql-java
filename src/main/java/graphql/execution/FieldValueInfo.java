@@ -2,10 +2,10 @@ package graphql.execution;
 
 import graphql.ExecutionResult;
 import graphql.PublicApi;
+import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 import static graphql.Assert.assertNotNull;
 
@@ -22,10 +22,10 @@ public class FieldValueInfo {
     }
 
     private final CompleteValueType completeValueType;
-    private final CompletableFuture<ExecutionResult> fieldValue;
+    private final Mono<ExecutionResult> fieldValue;
     private final List<FieldValueInfo> fieldValueInfos;
 
-    private FieldValueInfo(CompleteValueType completeValueType, CompletableFuture<ExecutionResult> fieldValue, List<FieldValueInfo> fieldValueInfos) {
+    private FieldValueInfo(CompleteValueType completeValueType, Mono<ExecutionResult> fieldValue, List<FieldValueInfo> fieldValueInfos) {
         assertNotNull(fieldValueInfos, "fieldValueInfos can't be null");
         this.completeValueType = completeValueType;
         this.fieldValue = fieldValue;
@@ -36,7 +36,7 @@ public class FieldValueInfo {
         return completeValueType;
     }
 
-    public CompletableFuture<ExecutionResult> getFieldValue() {
+    public Mono<ExecutionResult> getFieldValue() {
         return fieldValue;
     }
 
@@ -60,7 +60,7 @@ public class FieldValueInfo {
     @SuppressWarnings("unused")
     public static class Builder {
         private CompleteValueType completeValueType;
-        private CompletableFuture<ExecutionResult> executionResultFuture;
+        private Mono<ExecutionResult> executionResultFuture;
         private List<FieldValueInfo> listInfos = new ArrayList<>();
 
         public Builder(CompleteValueType completeValueType) {
@@ -72,7 +72,7 @@ public class FieldValueInfo {
             return this;
         }
 
-        public Builder fieldValue(CompletableFuture<ExecutionResult> executionResultFuture) {
+        public Builder fieldValue(Mono<ExecutionResult> executionResultFuture) {
             this.executionResultFuture = executionResultFuture;
             return this;
         }

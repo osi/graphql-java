@@ -2,14 +2,14 @@ package graphql.execution;
 
 import graphql.ExecutionResult;
 import graphql.ExecutionResultImpl;
-import graphql.execution.reactive.CompletionStageMappingPublisher;
 import graphql.language.Field;
 import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 import static graphql.Assert.assertTrue;
 import static java.util.Collections.singletonMap;
@@ -35,22 +35,19 @@ public class SubscriptionExecutionStrategy extends ExecutionStrategy {
     }
 
     @Override
-    public CompletableFuture<ExecutionResult> execute(ExecutionContext executionContext, ExecutionStrategyParameters parameters) throws NonNullableFieldWasNullException {
+    public Mono<ExecutionResult> execute(ExecutionContext executionContext, ExecutionStrategyParameters parameters) throws NonNullableFieldWasNullException {
 
-        CompletableFuture<Publisher<Object>> sourceEventStream = createSourceEventStream(executionContext, parameters);
+        Mono<Publisher<Object>> sourceEventStream = createSourceEventStream(executionContext, parameters);
 
         //
         // when the upstream source event stream completes, subscribe to it and wire in our adapter
-        return sourceEventStream.thenApply((publisher) -> {
-            if (publisher == null) {
-                return new ExecutionResultImpl(null, executionContext.getErrors());
-            }
-            CompletionStageMappingPublisher<ExecutionResult, Object> mapSourceToResponse = new CompletionStageMappingPublisher<>(
-                    publisher,
-                    eventPayload -> executeSubscriptionEvent(executionContext, parameters, eventPayload)
-            );
-            return new ExecutionResultImpl(mapSourceToResponse, executionContext.getErrors());
-        });
+        return sourceEventStream
+                .<ExecutionResult>map(
+                        p -> new ExecutionResultImpl(
+                                Flux.from(p)
+                                    .concatMap(d -> executeSubscriptionEvent(executionContext, parameters, d)),
+                                executionContext.getErrors()))
+                .switchIfEmpty(Mono.fromCallable(() -> new ExecutionResultImpl(null, executionContext.getErrors())));
     }
 
     /*
@@ -67,13 +64,14 @@ public class SubscriptionExecutionStrategy extends ExecutionStrategy {
             Return {fieldStream}.
      */
 
-    private CompletableFuture<Publisher<Object>> createSourceEventStream(ExecutionContext executionContext, ExecutionStrategyParameters parameters) {
+    private Mono<Publisher<Object>> createSourceEventStream(ExecutionContext executionContext, ExecutionStrategyParameters parameters) {
         ExecutionStrategyParameters newParameters = firstFieldOfSubscriptionSelection(parameters);
 
-        CompletableFuture<Object> fieldFetched = fetchField(executionContext, newParameters);
-        return fieldFetched.thenApply(publisher -> {
+        Mono<Object> fieldFetched = fetchField(executionContext, newParameters);
+        return fieldFetched.map(publisher -> {
             if (publisher != null) {
-                assertTrue(publisher instanceof Publisher, "You data fetcher must return a Publisher of events when using graphql subscriptions");
+                assertTrue(publisher instanceof Publisher,
+                           "You data fetcher must return a Publisher of events when using graphql subscriptions");
             }
             //noinspection unchecked
             return (Publisher<Object>) publisher;
@@ -93,13 +91,14 @@ public class SubscriptionExecutionStrategy extends ExecutionStrategy {
         Note: The {ExecuteSubscriptionEvent()} algorithm is intentionally similar to {ExecuteQuery()} since this is how each event result is produced.
      */
 
-    private CompletableFuture<ExecutionResult> executeSubscriptionEvent(ExecutionContext executionContext, ExecutionStrategyParameters parameters, Object eventPayload) {
+    private Mono<ExecutionResult> executeSubscriptionEvent(ExecutionContext executionContext, ExecutionStrategyParameters parameters, Object eventPayload) {
         ExecutionContext newExecutionContext = executionContext.transform(builder -> builder.root(eventPayload));
 
         ExecutionStrategyParameters newParameters = firstFieldOfSubscriptionSelection(parameters);
 
-        return completeField(newExecutionContext, newParameters, eventPayload).getFieldValue()
-                .thenApply(executionResult -> wrapWithRootFieldName(newParameters, executionResult));
+        return completeField(newExecutionContext, newParameters, eventPayload)
+                .flatMap(FieldValueInfo::getFieldValue)
+                .map(executionResult -> wrapWithRootFieldName(newParameters, executionResult));
     }
 
     private ExecutionResult wrapWithRootFieldName(ExecutionStrategyParameters parameters, ExecutionResult executionResult) {

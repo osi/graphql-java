@@ -55,7 +55,7 @@ public class ExecutionContext {
         this.context = context;
         this.root = root;
         this.instrumentation = instrumentation;
-        this.errors.addAll(startingErrors);
+        errors.addAll(startingErrors);
     }
 
 
@@ -110,6 +110,7 @@ public class ExecutionContext {
      * @param error     the error to add
      * @param fieldPath the field path to put it under
      */
+    // TODO nasty shared state
     public void addError(GraphQLError error, ExecutionPath fieldPath) {
         //
         // see http://facebook.github.io/graphql/#sec-Errors-and-Non-Nullability about how per
@@ -124,7 +125,7 @@ public class ExecutionContext {
                 }
             }
         }
-        this.errors.add(error);
+        errors.add(error);
     }
 
     /**
@@ -133,16 +134,18 @@ public class ExecutionContext {
      *
      * @param error the error to add
      */
+    // TODO nasty shared state
     public void addError(GraphQLError error) {
         // see https://github.com/graphql-java/graphql-java/issues/888 on how the spec is unclear
         // on how exactly multiple errors should be handled - ie only once per field or not outside the nullability
         // aspect.
-        this.errors.add(error);
+        errors.add(error);
     }
 
     /**
      * @return the total list of errors for this execution context
      */
+    // TODO nasty shared state
     public List<GraphQLError> getErrors() {
         return Collections.unmodifiableList(errors);
     }

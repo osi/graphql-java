@@ -4,11 +4,11 @@ import graphql.ExecutionResult;
 import graphql.ExecutionResultImpl;
 import graphql.Internal;
 import graphql.language.Field;
+import reactor.core.publisher.Mono;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * To prove we can write other execution strategies this one does a breath first approach
@@ -21,7 +21,7 @@ public class BreadthFirstExecutionTestStrategy extends ExecutionStrategy {
     }
 
     @Override
-    public CompletableFuture<ExecutionResult> execute(ExecutionContext executionContext, ExecutionStrategyParameters parameters) throws NonNullableFieldWasNullException {
+    public Mono<ExecutionResult> execute(ExecutionContext executionContext, ExecutionStrategyParameters parameters) throws NonNullableFieldWasNullException {
         Map<String, List<Field>> fields = parameters.getFields();
 
         Map<String, Object> fetchedValues = new LinkedHashMap<>();
@@ -45,12 +45,12 @@ public class BreadthFirstExecutionTestStrategy extends ExecutionStrategy {
             try {
                 completeValue(executionContext, results, fieldName, fetchedValue, newParameters);
             } catch (NonNullableFieldWasNullException e) {
-                assertNonNullFieldPrecondition(e);
+                assertNonNullFieldPrecondition(e).block();
                 results = null;
                 break;
             }
         }
-        return CompletableFuture.completedFuture(new ExecutionResultImpl(results, executionContext.getErrors()));
+        return Mono.just(new ExecutionResultImpl(results, executionContext.getErrors()));
     }
 
     private Object fetchField(ExecutionContext executionContext, ExecutionStrategyParameters parameters, Map<String, List<Field>> fields, String fieldName) {
@@ -60,11 +60,13 @@ public class BreadthFirstExecutionTestStrategy extends ExecutionStrategy {
         ExecutionStrategyParameters newParameters = parameters
                 .transform(builder -> builder.field(currentField).path(fieldPath));
 
-        return fetchField(executionContext, newParameters).join();
+        return fetchField(executionContext, newParameters).block();
     }
 
     private void completeValue(ExecutionContext executionContext, Map<String, Object> results, String fieldName, Object fetchedValue, ExecutionStrategyParameters newParameters) {
-        ExecutionResult resolvedResult = completeField(executionContext, newParameters, fetchedValue).getFieldValue().join();
+        ExecutionResult resolvedResult = completeField(executionContext, newParameters, fetchedValue)
+                .flatMap(FieldValueInfo::getFieldValue)
+                .block();
         results.put(fieldName, resolvedResult != null ? resolvedResult.getData() : null);
     }
 

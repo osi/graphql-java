@@ -4,7 +4,6 @@ import graphql.ExecutionResult
 import graphql.GraphQL
 import graphql.StarWarsSchema
 import graphql.execution.AsyncExecutionStrategy
-import graphql.execution.batched.BatchedExecutionStrategy
 import graphql.execution.instrumentation.parameters.InstrumentationExecutionStrategyParameters
 import graphql.execution.instrumentation.parameters.InstrumentationFieldFetchParameters
 import graphql.schema.DataFetcher
@@ -12,6 +11,7 @@ import graphql.schema.DataFetchingEnvironment
 import graphql.schema.PropertyDataFetcher
 import graphql.schema.StaticDataFetcher
 import org.awaitility.Awaitility
+import reactor.core.publisher.Mono
 import spock.lang.Specification
 
 import java.util.concurrent.CompletableFuture
@@ -108,57 +108,6 @@ class InstrumentationTest extends Specification {
         instrumentation.dfInvocations[1].getFieldTypeInfo().isNonNullType()
     }
 
-    def '#630 - Instrumentation of batched execution strategy is called'() {
-        given:
-
-        def query = """
-        {
-            hero {
-                id
-            }
-        }
-        """
-
-        def expected = [
-                "start:execution",
-                "start:parse",
-                "end:parse",
-                "start:validation",
-                "end:validation",
-                "start:execute-operation",
-                "start:execution-strategy",
-
-                "start:field-hero",
-                "start:fetch-hero",
-                "end:fetch-hero",
-                "end:field-hero",
-
-                "start:field-id",
-                "start:fetch-id",
-                "end:fetch-id",
-                "end:field-id",
-
-                "end:execution-strategy",
-                "end:execute-operation",
-                "end:execution",
-        ]
-        when:
-
-        def instrumentation = new TestingInstrumentation()
-
-        def graphQL = GraphQL
-                .newGraphQL(StarWarsSchema.starWarsSchema)
-                .queryExecutionStrategy(new BatchedExecutionStrategy())
-                .instrumentation(instrumentation)
-                .build()
-
-        graphQL.execute(query)
-
-        then:
-
-        instrumentation.executionList == expected
-    }
-
     def "exceptions at field fetch will instrument exceptions correctly"() {
 
         given:
@@ -216,9 +165,11 @@ class InstrumentationTest extends Specification {
             return new ExecutionStrategyInstrumentationContext() {
 
                 @Override
-                void onDispatched(CompletableFuture<ExecutionResult> result) {
-                    System.out.println(String.format("t%s setting go signal on", Thread.currentThread().getId()))
-                    goSignal.set(true)
+                Mono<ExecutionResult> onDispatched(Mono<ExecutionResult> result) {
+                    return result.doOnSubscribe({ s ->
+                        System.out.println(String.format("t%s setting go signal on", Thread.currentThread().getId()))
+                        goSignal.set(true)
+                    })
                 }
 
                 @Override

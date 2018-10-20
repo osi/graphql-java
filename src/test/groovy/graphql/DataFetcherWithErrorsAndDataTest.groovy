@@ -3,7 +3,6 @@ package graphql
 import graphql.execution.AsyncExecutionStrategy
 import graphql.execution.AsyncSerialExecutionStrategy
 import graphql.execution.DataFetcherResult
-import graphql.execution.ExecutorServiceExecutionStrategy
 import graphql.language.SourceLocation
 import graphql.schema.GraphQLOutputType
 import graphql.schema.GraphQLSchema
@@ -16,7 +15,6 @@ import static graphql.Scalars.GraphQLString
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition
 import static graphql.schema.GraphQLObjectType.newObject
 import static graphql.schema.GraphQLSchema.newSchema
-import static java.util.concurrent.ForkJoinPool.commonPool
 
 /**
  * A set of tests to show how a data fetcher can return errors and data
@@ -110,7 +108,6 @@ class DataFetcherWithErrorsAndDataTest extends Specification {
         where:
 
         strategyName  | executionStrategy
-        'executor'    | new ExecutorServiceExecutionStrategy(commonPool())
         'async'       | new AsyncExecutionStrategy()
         'asyncSerial' | new AsyncSerialExecutionStrategy()
     }
@@ -194,7 +191,6 @@ class DataFetcherWithErrorsAndDataTest extends Specification {
         where:
 
         strategyName  | executionStrategy
-        'executor'    | new ExecutorServiceExecutionStrategy(commonPool())
         'async'       | new AsyncExecutionStrategy()
         'asyncSerial' | new AsyncSerialExecutionStrategy()
     }
@@ -270,7 +266,6 @@ class DataFetcherWithErrorsAndDataTest extends Specification {
         where:
 
         strategyName  | executionStrategy
-        'executor'    | new ExecutorServiceExecutionStrategy(commonPool())
         'async'       | new AsyncExecutionStrategy()
         'asyncSerial' | new AsyncSerialExecutionStrategy()
     }
@@ -340,7 +335,6 @@ class DataFetcherWithErrorsAndDataTest extends Specification {
         where:
 
         strategyName  | executionStrategy
-        'executor'    | new ExecutorServiceExecutionStrategy(commonPool())
         'async'       | new AsyncExecutionStrategy()
         'asyncSerial' | new AsyncSerialExecutionStrategy()
     }

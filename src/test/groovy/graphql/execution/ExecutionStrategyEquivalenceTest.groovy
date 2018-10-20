@@ -6,8 +6,6 @@ import graphql.StarWarsSchema
 import spock.lang.Specification
 import spock.lang.Unroll
 
-import java.util.concurrent.ForkJoinPool
-
 /**
  * This allows the testing of different execution strategies that provide the same results given the same schema,
  * and queries and results
@@ -136,12 +134,8 @@ class ExecutionStrategyEquivalenceTest extends Specification {
         "async"           | new AsyncExecutionStrategy()            | standardQueriesAndResults()
         "asyncSerial"     | new AsyncSerialExecutionStrategy()      | standardQueriesAndResults()
         "breadthFirst"    | new BreadthFirstExecutionTestStrategy() | standardQueriesAndResults()
-        "executorService" | executorServiceStrategy()               | standardQueriesAndResults()
         "breadthFirst"    | new BreadthFirstTestStrategy()          | standardQueriesAndResults()
 
     }
 
-    def executorServiceStrategy() {
-        new ExecutorServiceExecutionStrategy(ForkJoinPool.commonPool())
-    }
 }

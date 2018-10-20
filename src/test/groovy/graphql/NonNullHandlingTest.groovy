@@ -2,7 +2,6 @@ package graphql
 
 import graphql.execution.AsyncExecutionStrategy
 import graphql.execution.AsyncSerialExecutionStrategy
-import graphql.execution.ExecutorServiceExecutionStrategy
 import graphql.schema.GraphQLOutputType
 import graphql.schema.GraphQLSchema
 import spock.lang.Specification
@@ -14,7 +13,6 @@ import static graphql.schema.GraphQLList.list
 import static graphql.schema.GraphQLNonNull.nonNull
 import static graphql.schema.GraphQLObjectType.newObject
 import static graphql.schema.GraphQLSchema.newSchema
-import static java.util.concurrent.ForkJoinPool.commonPool
 
 /**
  * A set of tests to show how non null field handling correctly bubble up or not
@@ -88,7 +86,6 @@ class NonNullHandlingTest extends Specification {
         where:
 
         strategyName  | executionStrategy
-        'executor'    | new ExecutorServiceExecutionStrategy(commonPool())
         'async'       | new AsyncExecutionStrategy()
         'asyncSerial' | new AsyncSerialExecutionStrategy()
     }
@@ -209,7 +206,6 @@ class NonNullHandlingTest extends Specification {
         where:
 
         strategyName  | executionStrategy
-        'executor'    | new ExecutorServiceExecutionStrategy(commonPool())
         'async'       | new AsyncExecutionStrategy()
         'asyncSerial' | new AsyncSerialExecutionStrategy()
 
@@ -275,7 +271,6 @@ class NonNullHandlingTest extends Specification {
         where:
 
         strategyName  | executionStrategy
-        'executor'    | new ExecutorServiceExecutionStrategy(commonPool())
         'async'       | new AsyncExecutionStrategy()
         'asyncSerial' | new AsyncSerialExecutionStrategy()
 
@@ -338,7 +333,6 @@ class NonNullHandlingTest extends Specification {
         where:
 
         strategyName  | executionStrategy
-        'executor'    | new ExecutorServiceExecutionStrategy(commonPool())
         'async'       | new AsyncExecutionStrategy()
         'asyncSerial' | new AsyncSerialExecutionStrategy()
 
@@ -401,7 +395,6 @@ class NonNullHandlingTest extends Specification {
         where:
 
         strategyName  | executionStrategy
-        'executor'    | new ExecutorServiceExecutionStrategy(commonPool())
         'async'       | new AsyncExecutionStrategy()
         'asyncSerial' | new AsyncSerialExecutionStrategy()
     }

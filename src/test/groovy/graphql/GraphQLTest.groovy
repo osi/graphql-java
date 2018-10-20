@@ -2,32 +2,17 @@ package graphql
 
 import graphql.analysis.MaxQueryComplexityInstrumentation
 import graphql.analysis.MaxQueryDepthInstrumentation
-import graphql.execution.AsyncExecutionStrategy
-import graphql.execution.ExecutionContext
-import graphql.execution.ExecutionId
-import graphql.execution.ExecutionIdProvider
-import graphql.execution.ExecutionStrategyParameters
-import graphql.execution.MissingRootTypeException
-import graphql.execution.batched.BatchedExecutionStrategy
+import graphql.execution.*
 import graphql.execution.instrumentation.Instrumentation
 import graphql.execution.instrumentation.SimpleInstrumentation
 import graphql.language.SourceLocation
-import graphql.schema.DataFetcher
-import graphql.schema.DataFetchingEnvironment
-import graphql.schema.GraphQLEnumType
-import graphql.schema.GraphQLFieldDefinition
-import graphql.schema.GraphQLInterfaceType
-import graphql.schema.GraphQLList
-import graphql.schema.GraphQLNonNull
-import graphql.schema.GraphQLObjectType
-import graphql.schema.GraphQLSchema
-import graphql.schema.StaticDataFetcher
+import graphql.schema.*
 import graphql.validation.ValidationError
 import graphql.validation.ValidationErrorType
+import reactor.core.publisher.Mono
 import spock.lang.Specification
 import spock.lang.Unroll
 
-import java.util.concurrent.CompletableFuture
 import java.util.function.UnaryOperator
 
 import static graphql.ExecutionInput.Builder
@@ -593,7 +578,7 @@ class GraphQLTest extends Specification {
 
         when:
         def builder = newExecutionInput().query('{ hello }')
-        def result = GraphQL.newGraphQL(schema).build().executeAsync(builder).join().data
+        def result = GraphQL.newGraphQL(schema).build().executeAsync(builder).block().data
 
         then:
         result == [hello: 'world']
@@ -606,7 +591,7 @@ class GraphQLTest extends Specification {
         when:
 
         def builderFunction = { it.query('{hello}') } as UnaryOperator<Builder>
-        def result = GraphQL.newGraphQL(schema).build().executeAsync(builderFunction).join().data
+        def result = GraphQL.newGraphQL(schema).build().executeAsync(builderFunction).block().data
 
         then:
         result == [hello: 'world']
@@ -760,84 +745,12 @@ class GraphQLTest extends Specification {
     }
 
 
-    def "batched execution with non batched DataFetcher returning CompletableFuture"() {
-        given:
-        GraphQLObjectType foo = newObject()
-                .name("Foo")
-                .withInterface(typeRef("Node"))
-                .field(
-                { field ->
-                    field
-                            .name("id")
-                            .type(Scalars.GraphQLID)
-                } as UnaryOperator)
-                .build()
-
-        GraphQLInterfaceType node = GraphQLInterfaceType.newInterface()
-                .name("Node")
-                .field(
-                { field ->
-                    field
-                            .name("id")
-                            .type(Scalars.GraphQLID)
-                } as UnaryOperator)
-                .typeResolver(
-                {
-                    env ->
-                        if (env.getObject() instanceof CompletableFuture) {
-                            throw new RuntimeException("This seems bad!")
-                        }
-
-                        return foo
-                })
-                .build()
-
-        GraphQLObjectType query = newObject()
-                .name("RootQuery")
-                .field(
-                { field ->
-                    field
-                            .name("node")
-                            .dataFetcher(
-                            { env ->
-                                CompletableFuture.supplyAsync({ ->
-                                    Map<String, String> map = new HashMap<>()
-                                    map.put("id", "abc")
-
-                                    return map
-                                })
-                            })
-                            .type(node)
-                } as UnaryOperator)
-                .build()
-
-        GraphQLSchema schema = newSchema()
-                .query(query)
-                .additionalType(foo)
-                .build()
-
-        GraphQL graphQL = GraphQL.newGraphQL(schema)
-                .queryExecutionStrategy(new BatchedExecutionStrategy())
-                .mutationExecutionStrategy(new BatchedExecutionStrategy())
-                .build()
-
-        ExecutionInput executionInput = newExecutionInput()
-                .query("{node {id}}")
-                .build()
-        when:
-        def result = graphQL
-                .execute(executionInput)
-
-        then:
-        result.getData() == [node: [id: "abc"]]
-    }
-
     class CaptureStrategy extends AsyncExecutionStrategy {
         ExecutionId executionId = null
         Instrumentation instrumentation = null
 
         @Override
-        CompletableFuture<ExecutionResult> execute(ExecutionContext executionContext, ExecutionStrategyParameters parameters) {
+        Mono<ExecutionResult> execute(ExecutionContext executionContext, ExecutionStrategyParameters parameters) {
             executionId = executionContext.executionId
             instrumentation = executionContext.instrumentation
             return super.execute(executionContext, parameters)

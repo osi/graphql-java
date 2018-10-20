@@ -20,13 +20,13 @@ import graphql.execution.instrumentation.parameters.InstrumentationFieldFetchPar
 import graphql.execution.instrumentation.tracing.TracingInstrumentation;
 import graphql.schema.DataFetcher;
 import graphql.schema.GraphQLSchema;
+import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
 
 import static graphql.StarWarsSchema.queryType;
@@ -92,12 +92,12 @@ public class InstrumentationExamples {
         }
 
         @Override
-        public CompletableFuture<ExecutionResult> instrumentExecutionResult(ExecutionResult executionResult, InstrumentationExecutionParameters parameters) {
+        public Mono<ExecutionResult> instrumentExecutionResult(ExecutionResult executionResult, InstrumentationExecutionParameters parameters) {
             //
             // this allows you to instrument the execution result some how.  For example the Tracing support uses this to put
             // the `extensions` map of data in place
             //
-            return CompletableFuture.completedFuture(executionResult);
+            return Mono.just(executionResult);
         }
     }
 

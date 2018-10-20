@@ -10,9 +10,8 @@ import graphql.execution.instrumentation.SimpleInstrumentation
 import graphql.execution.instrumentation.TestingInstrumentation
 import graphql.execution.instrumentation.parameters.InstrumentationExecutionParameters
 import graphql.language.Document
+import reactor.core.publisher.Mono
 import spock.lang.Specification
-
-import java.util.function.Function
 
 class PreparsedDocumentProviderTest extends Specification {
 
@@ -187,11 +186,11 @@ class PreparsedDocumentProviderTest extends Specification {
 
         def documentProvider = new PreparsedDocumentProvider() {
             @Override
-            PreparsedDocumentEntry get(String query, Function<String, PreparsedDocumentEntry> computeFunction) {
+            Mono<PreparsedDocumentEntry> get(String query, Mono<PreparsedDocumentEntry> compute) {
                 if (query == "#A") {
-                    return computeFunction.apply(queryA)
+                    return compute.apply(queryA)
                 } else {
-                    return computeFunction.apply(queryB)
+                    return compute.apply(queryB)
                 }
             }
         }

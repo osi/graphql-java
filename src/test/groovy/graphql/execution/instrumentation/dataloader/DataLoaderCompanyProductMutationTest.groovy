@@ -9,7 +9,7 @@ import org.dataloader.DataLoaderRegistry
 import spock.lang.Specification
 import spock.lang.Unroll
 
-import java.util.concurrent.TimeUnit
+import java.time.Duration
 
 import static graphql.schema.idl.RuntimeWiring.newRuntimeWiring
 import static graphql.schema.idl.TypeRuntimeWiring.newTypeWiring
@@ -75,7 +75,7 @@ class DataLoaderCompanyProductMutationTest extends Specification {
 
         when:
 
-        ExecutionResult result = graphQL.executeAsync(executionInput).get(5, TimeUnit.SECONDS)
+        ExecutionResult result = graphQL.executeAsync(executionInput).block(Duration.ofSeconds(5))
 
         then:
 

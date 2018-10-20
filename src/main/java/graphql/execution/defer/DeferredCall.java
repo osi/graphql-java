@@ -4,10 +4,9 @@ import graphql.ExecutionResult;
 import graphql.ExecutionResultImpl;
 import graphql.GraphQLError;
 import graphql.Internal;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.function.Supplier;
 
 /**
  * This represents a deferred call (aka @defer) to get an execution result sometime after
@@ -15,17 +14,16 @@ import java.util.function.Supplier;
  */
 @Internal
 public class DeferredCall {
-    private final Supplier<CompletableFuture<ExecutionResult>> call;
+    private final Mono<ExecutionResult> call;
     private final DeferredErrorSupport errorSupport;
 
-    public DeferredCall(Supplier<CompletableFuture<ExecutionResult>> call, DeferredErrorSupport deferredErrorSupport) {
+    public DeferredCall(Mono<ExecutionResult> call, DeferredErrorSupport deferredErrorSupport) {
         this.call = call;
         this.errorSupport = deferredErrorSupport;
     }
 
-    CompletableFuture<ExecutionResult> invoke() {
-        CompletableFuture<ExecutionResult> future = call.get();
-        return future.thenApply(this::addErrorsEncountered);
+    Mono<ExecutionResult> invoke() {
+        return call.map(this::addErrorsEncountered);
     }
 
     private ExecutionResult addErrorsEncountered(ExecutionResult executionResult) {

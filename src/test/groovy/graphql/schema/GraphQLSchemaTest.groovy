@@ -1,10 +1,6 @@
 package graphql.schema
 
-import graphql.AssertException
-import graphql.Directives
-import graphql.ExecutionInput
-import graphql.GraphQL
-import graphql.TestUtil
+import graphql.*
 import graphql.schema.idl.RuntimeWiring
 import graphql.schema.idl.TypeRuntimeWiring
 import spock.lang.Specification
@@ -12,10 +8,7 @@ import spock.lang.Specification
 import java.util.function.UnaryOperator
 
 import static graphql.Scalars.GraphQLString
-import static graphql.StarWarsSchema.characterInterface
-import static graphql.StarWarsSchema.droidType
-import static graphql.StarWarsSchema.humanType
-import static graphql.StarWarsSchema.starWarsSchema
+import static graphql.StarWarsSchema.*
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition
 import static graphql.schema.GraphQLObjectType.newObject
 
@@ -94,7 +87,7 @@ class GraphQLSchemaTest extends Specification {
 
         return graphQL
                 .executeAsync(executionInput)
-                .join()
+                .block()
     }
 
     def basicSchemaBuilder() {

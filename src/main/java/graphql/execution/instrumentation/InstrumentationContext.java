@@ -1,6 +1,6 @@
 package graphql.execution.instrumentation;
 
-import java.util.concurrent.CompletableFuture;
+import reactor.core.publisher.Mono;
 
 /**
  * When a {@link Instrumentation}.'beginXXX()' method is called then it must return a non null InstrumentationContext
@@ -17,7 +17,9 @@ public interface InstrumentationContext<T> {
      *
      * @param result the result of the step as a completable future
      */
-    void onDispatched(CompletableFuture<T> result);
+    default Mono<T> onDispatched(Mono<T> result) {
+        return result;
+    };
 
     /**
      * This is invoked when the instrumentation step is fully completed
@@ -25,6 +27,12 @@ public interface InstrumentationContext<T> {
      * @param result the result of the step (which may be null)
      * @param t      this exception will be non null if an exception was thrown during the step
      */
+    // TODO check if any impls depend on non-null result &and& t
     void onCompleted(T result, Throwable t);
+
+    default Mono<T> instrument(Mono<T> input) {
+        return input.transform(this::onDispatched)
+                    .doOnSuccessOrError(this::onCompleted);
+    }
 
 }

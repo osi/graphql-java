@@ -7,9 +7,8 @@ import graphql.MutationSchema
 import graphql.execution.instrumentation.InstrumentationState
 import graphql.execution.instrumentation.SimpleInstrumentation
 import graphql.parser.Parser
+import reactor.core.publisher.Mono
 import spock.lang.Specification
-
-import java.util.concurrent.CompletableFuture
 
 import static java.util.Collections.emptyList
 
@@ -20,9 +19,9 @@ class ExecutionTest extends Specification {
 
 
         @Override
-        CompletableFuture<ExecutionResult> execute(ExecutionContext executionContext, ExecutionStrategyParameters parameters) throws NonNullableFieldWasNullException {
+        Mono<ExecutionResult> execute(ExecutionContext executionContext, ExecutionStrategyParameters parameters) throws NonNullableFieldWasNullException {
             execute++
-            return CompletableFuture.completedFuture(result())
+            return Mono.just(result())
         }
 
         private ExecutionResultImpl result() {

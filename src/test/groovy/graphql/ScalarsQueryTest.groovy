@@ -1,6 +1,6 @@
 package graphql
 
-import graphql.execution.batched.BatchedExecutionStrategy
+
 import spock.lang.Specification
 import spock.lang.Unroll
 
@@ -70,10 +70,6 @@ class ScalarsQueryTest extends Specification {
         when:
         def result = GraphQL.newGraphQL(ScalarsQuerySchema.scalarsQuerySchema)
                 .build().execute(query)
-        def resultBatched = GraphQL.newGraphQL(ScalarsQuerySchema.scalarsQuerySchema)
-                .queryExecutionStrategy(new BatchedExecutionStrategy())
-                .build().execute(query)
-
         then:
         thrown(GraphQLException)
     }

@@ -3,7 +3,6 @@ package graphql.execution.instrumentation;
 import graphql.ExecutionInput;
 import graphql.ExecutionResult;
 import graphql.PublicApi;
-import graphql.execution.Async;
 import graphql.execution.ExecutionContext;
 import graphql.execution.FieldValueInfo;
 import graphql.execution.instrumentation.parameters.InstrumentationDeferredFieldParameters;
@@ -19,12 +18,12 @@ import graphql.language.Field;
 import graphql.schema.DataFetcher;
 import graphql.schema.GraphQLSchema;
 import graphql.validation.ValidationError;
+import reactor.core.publisher.Mono;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 import static graphql.Assert.assertNotNull;
 import static java.util.stream.Collectors.toList;
@@ -59,103 +58,135 @@ public class ChainedInstrumentation implements Instrumentation {
     }
 
     @Override
-    public InstrumentationContext<ExecutionResult> beginExecution(final InstrumentationExecutionParameters parameters) {
+    public InstrumentationContext<ExecutionResult> beginExecution(InstrumentationExecutionParameters parameters) {
         return new ChainedInstrumentationContext<>(instrumentations.stream()
-                .map(instrumentation -> {
-                    InstrumentationState state = getState(instrumentation, parameters.getInstrumentationState());
-                    return instrumentation.beginExecution(parameters.withNewState(state));
-                })
-                .collect(toList()));
+                                                                   .map(instrumentation -> {
+                                                                       InstrumentationState state = getState(
+                                                                               instrumentation,
+                                                                               parameters.getInstrumentationState());
+                                                                       return instrumentation.beginExecution(
+                                                                               parameters.withNewState(state));
+                                                                   })
+                                                                   .collect(toList()));
     }
 
     @Override
     public InstrumentationContext<Document> beginParse(InstrumentationExecutionParameters parameters) {
         return new ChainedInstrumentationContext<>(instrumentations.stream()
-                .map(instrumentation -> {
-                    InstrumentationState state = getState(instrumentation, parameters.getInstrumentationState());
-                    return instrumentation.beginParse(parameters.withNewState(state));
-                })
-                .collect(toList()));
+                                                                   .map(instrumentation -> {
+                                                                       InstrumentationState state = getState(
+                                                                               instrumentation,
+                                                                               parameters.getInstrumentationState());
+                                                                       return instrumentation.beginParse(
+                                                                               parameters.withNewState(state));
+                                                                   })
+                                                                   .collect(toList()));
     }
 
     @Override
     public InstrumentationContext<List<ValidationError>> beginValidation(InstrumentationValidationParameters parameters) {
         return new ChainedInstrumentationContext<>(instrumentations.stream()
-                .map(instrumentation -> {
-                    InstrumentationState state = getState(instrumentation, parameters.getInstrumentationState());
-                    return instrumentation.beginValidation(parameters.withNewState(state));
-                })
-                .collect(toList()));
+                                                                   .map(instrumentation -> {
+                                                                       InstrumentationState state = getState(
+                                                                               instrumentation,
+                                                                               parameters.getInstrumentationState());
+                                                                       return instrumentation.beginValidation(
+                                                                               parameters.withNewState(state));
+                                                                   })
+                                                                   .collect(toList()));
     }
 
     @Override
     public InstrumentationContext<ExecutionResult> beginExecuteOperation(InstrumentationExecuteOperationParameters parameters) {
         return new ChainedInstrumentationContext<>(instrumentations.stream()
-                .map(instrumentation -> {
-                    InstrumentationState state = getState(instrumentation, parameters.getInstrumentationState());
-                    return instrumentation.beginExecuteOperation(parameters.withNewState(state));
-                })
-                .collect(toList()));
+                                                                   .map(instrumentation -> {
+                                                                       InstrumentationState state = getState(
+                                                                               instrumentation,
+                                                                               parameters.getInstrumentationState());
+                                                                       return instrumentation.beginExecuteOperation(
+                                                                               parameters.withNewState(state));
+                                                                   })
+                                                                   .collect(toList()));
     }
 
     @Override
     public ExecutionStrategyInstrumentationContext beginExecutionStrategy(InstrumentationExecutionStrategyParameters parameters) {
         return new ChainedExecutionStrategyInstrumentationContext(instrumentations.stream()
-                .map(instrumentation -> {
-                    InstrumentationState state = getState(instrumentation, parameters.getInstrumentationState());
-                    return instrumentation.beginExecutionStrategy(parameters.withNewState(state));
-                })
-                .collect(toList()));
+                                                                                  .map(instrumentation -> {
+                                                                                      InstrumentationState state = getState(
+                                                                                              instrumentation,
+                                                                                              parameters.getInstrumentationState());
+                                                                                      return instrumentation.beginExecutionStrategy(
+                                                                                              parameters.withNewState(
+                                                                                                      state));
+                                                                                  })
+                                                                                  .collect(toList()));
     }
 
     @Override
     public DeferredFieldInstrumentationContext beginDeferredField(InstrumentationDeferredFieldParameters parameters) {
         return new ChainedDeferredExecutionStrategyInstrumentationContext(instrumentations.stream()
-                .map(instrumentation -> {
-                    InstrumentationState state = getState(instrumentation, parameters.getInstrumentationState());
-                    return instrumentation.beginDeferredField(parameters.withNewState(state));
-                })
-                .collect(toList()));
+                                                                                          .map(instrumentation -> {
+                                                                                              InstrumentationState state = getState(
+                                                                                                      instrumentation,
+                                                                                                      parameters.getInstrumentationState());
+                                                                                              return instrumentation.beginDeferredField(
+                                                                                                      parameters.withNewState(
+                                                                                                              state));
+                                                                                          })
+                                                                                          .collect(toList()));
     }
 
     @Override
     public InstrumentationContext<ExecutionResult> beginField(InstrumentationFieldParameters parameters) {
         return new ChainedInstrumentationContext<>(instrumentations.stream()
-                .map(instrumentation -> {
-                    InstrumentationState state = getState(instrumentation, parameters.getInstrumentationState());
-                    return instrumentation.beginField(parameters.withNewState(state));
-                })
-                .collect(toList()));
+                                                                   .map(instrumentation -> {
+                                                                       InstrumentationState state = getState(
+                                                                               instrumentation,
+                                                                               parameters.getInstrumentationState());
+                                                                       return instrumentation.beginField(
+                                                                               parameters.withNewState(state));
+                                                                   })
+                                                                   .collect(toList()));
     }
 
     @Override
     public InstrumentationContext<Object> beginFieldFetch(InstrumentationFieldFetchParameters parameters) {
         return new ChainedInstrumentationContext<>(instrumentations.stream()
-                .map(instrumentation -> {
-                    InstrumentationState state = getState(instrumentation, parameters.getInstrumentationState());
-                    return instrumentation.beginFieldFetch(parameters.withNewState(state));
-                })
-                .collect(toList()));
+                                                                   .map(instrumentation -> {
+                                                                       InstrumentationState state = getState(
+                                                                               instrumentation,
+                                                                               parameters.getInstrumentationState());
+                                                                       return instrumentation.beginFieldFetch(
+                                                                               parameters.withNewState(state));
+                                                                   })
+                                                                   .collect(toList()));
     }
 
     @Override
     public InstrumentationContext<ExecutionResult> beginFieldComplete(InstrumentationFieldCompleteParameters parameters) {
         return new ChainedInstrumentationContext<>(instrumentations.stream()
-                .map(instrumentation -> {
-                    InstrumentationState state = getState(instrumentation, parameters.getInstrumentationState());
-                    return instrumentation.beginFieldComplete(parameters.withNewState(state));
-                })
-                .collect(toList()));
+                                                                   .map(instrumentation -> {
+                                                                       InstrumentationState state = getState(
+                                                                               instrumentation,
+                                                                               parameters.getInstrumentationState());
+                                                                       return instrumentation.beginFieldComplete(
+                                                                               parameters.withNewState(state));
+                                                                   })
+                                                                   .collect(toList()));
     }
 
     @Override
     public InstrumentationContext<ExecutionResult> beginFieldListComplete(InstrumentationFieldCompleteParameters parameters) {
         return new ChainedInstrumentationContext<>(instrumentations.stream()
-                .map(instrumentation -> {
-                    InstrumentationState state = getState(instrumentation, parameters.getInstrumentationState());
-                    return instrumentation.beginFieldListComplete(parameters.withNewState(state));
-                })
-                .collect(toList()));
+                                                                   .map(instrumentation -> {
+                                                                       InstrumentationState state = getState(
+                                                                               instrumentation,
+                                                                               parameters.getInstrumentationState());
+                                                                       return instrumentation.beginFieldListComplete(
+                                                                               parameters.withNewState(state));
+                                                                   })
+                                                                   .collect(toList()));
     }
 
     @Override
@@ -180,7 +211,8 @@ public class ChainedInstrumentation implements Instrumentation {
     public ExecutionContext instrumentExecutionContext(ExecutionContext executionContext, InstrumentationExecutionParameters parameters) {
         for (Instrumentation instrumentation : instrumentations) {
             InstrumentationState state = getState(instrumentation, parameters.getInstrumentationState());
-            executionContext = instrumentation.instrumentExecutionContext(executionContext, parameters.withNewState(state));
+            executionContext = instrumentation.instrumentExecutionContext(executionContext,
+                                                                          parameters.withNewState(state));
         }
         return executionContext;
     }
@@ -195,13 +227,15 @@ public class ChainedInstrumentation implements Instrumentation {
     }
 
     @Override
-    public CompletableFuture<ExecutionResult> instrumentExecutionResult(ExecutionResult executionResult, InstrumentationExecutionParameters parameters) {
-        CompletableFuture<List<ExecutionResult>> resultsFuture = Async.eachSequentially(instrumentations, (instrumentation, index, prevResults) -> {
-            InstrumentationState state = getState(instrumentation, parameters.getInstrumentationState());
-            ExecutionResult lastResult = prevResults.size() > 0 ? prevResults.get(prevResults.size() - 1) : executionResult;
-            return instrumentation.instrumentExecutionResult(lastResult, parameters.withNewState(state));
-        });
-        return resultsFuture.thenApply((results) -> results.isEmpty() ? executionResult : results.get(results.size() - 1));
+    public Mono<ExecutionResult> instrumentExecutionResult(ExecutionResult executionResult, InstrumentationExecutionParameters parameters) {
+        return Mono.just(executionResult)
+                   .transform(r -> {
+                       for (Instrumentation instrumentation : instrumentations) {
+                           InstrumentationState state = getState(instrumentation, parameters.getInstrumentationState());
+                           r = r.flatMap(lastResult -> instrumentation.instrumentExecutionResult(lastResult, parameters.withNewState(state)));
+                       }
+                       return r;
+                   });
     }
 
     private static class ChainedInstrumentationState implements InstrumentationState {
@@ -228,8 +262,13 @@ public class ChainedInstrumentation implements Instrumentation {
         }
 
         @Override
-        public void onDispatched(CompletableFuture<T> result) {
-            contexts.forEach(context -> context.onDispatched(result));
+        public Mono<T> onDispatched(Mono<T> result) {
+            return result.transform(r -> {
+                for (InstrumentationContext<T> context : contexts) {
+                    r = context.onDispatched(r);
+                }
+                return r;
+            });
         }
 
         @Override
@@ -247,8 +286,13 @@ public class ChainedInstrumentation implements Instrumentation {
         }
 
         @Override
-        public void onDispatched(CompletableFuture<ExecutionResult> result) {
-            contexts.forEach(context -> context.onDispatched(result));
+        public Mono<ExecutionResult> onDispatched(Mono<ExecutionResult> result) {
+            return result.transform(r -> {
+                for (InstrumentationContext<ExecutionResult> context : contexts) {
+                    r = context.onDispatched(r);
+                }
+                return r;
+            });
         }
 
         @Override
@@ -276,8 +320,13 @@ public class ChainedInstrumentation implements Instrumentation {
         }
 
         @Override
-        public void onDispatched(CompletableFuture<ExecutionResult> result) {
-            contexts.forEach(context -> context.onDispatched(result));
+        public Mono<ExecutionResult> onDispatched(Mono<ExecutionResult> result) {
+            return result.transform(r -> {
+                for (InstrumentationContext<ExecutionResult> context : contexts) {
+                    r = context.onDispatched(r);
+                }
+                return r;
+            });
         }
 
         @Override

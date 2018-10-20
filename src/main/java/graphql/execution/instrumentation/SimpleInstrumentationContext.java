@@ -1,10 +1,10 @@
 package graphql.execution.instrumentation;
 
 import graphql.PublicApi;
+import reactor.core.publisher.Mono;
 
-import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 
 /**
  * A simple implementation of {@link InstrumentationContext}
@@ -13,22 +13,23 @@ import java.util.function.Consumer;
 public class SimpleInstrumentationContext<T> implements InstrumentationContext<T> {
 
     private final BiConsumer<T, Throwable> codeToRunOnComplete;
-    private final Consumer<CompletableFuture<T>> codeToRunOnDispatch;
+    private final UnaryOperator<Mono<T>> codeToRunOnDispatch;
 
     public SimpleInstrumentationContext() {
         this(null, null);
     }
 
-    private SimpleInstrumentationContext(Consumer<CompletableFuture<T>> codeToRunOnDispatch, BiConsumer<T, Throwable> codeToRunOnComplete) {
+    private SimpleInstrumentationContext(UnaryOperator<Mono<T>> codeToRunOnDispatch, BiConsumer<T, Throwable> codeToRunOnComplete) {
         this.codeToRunOnComplete = codeToRunOnComplete;
         this.codeToRunOnDispatch = codeToRunOnDispatch;
     }
 
     @Override
-    public void onDispatched(CompletableFuture<T> result) {
-        if (codeToRunOnDispatch != null) {
-            codeToRunOnDispatch.accept(result);
+    public Mono<T> onDispatched(Mono<T> result) {
+        if (codeToRunOnDispatch == null) {
+            return result;
         }
+        return result.transform(codeToRunOnDispatch);
     }
 
     @Override
@@ -47,7 +48,7 @@ public class SimpleInstrumentationContext<T> implements InstrumentationContext<T
      *
      * @return an instrumentation context
      */
-    public static <U> SimpleInstrumentationContext<U> whenDispatched(Consumer<CompletableFuture<U>> codeToRun) {
+    public static <U> SimpleInstrumentationContext<U> whenDispatched(UnaryOperator<Mono<U>> codeToRun) {
         return new SimpleInstrumentationContext<>(codeToRun, null);
     }
 

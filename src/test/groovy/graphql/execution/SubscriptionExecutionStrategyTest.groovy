@@ -1,14 +1,9 @@
 package graphql.execution
 
-import graphql.ErrorType
-import graphql.ExecutionInput
-import graphql.ExecutionResult
-import graphql.GraphQL
-import graphql.TestUtil
+import graphql.*
 import graphql.execution.pubsub.CapturingSubscriber
 import graphql.execution.pubsub.Message
-import graphql.execution.pubsub.ReactiveStreamsMessagePublisher
-import graphql.execution.pubsub.RxJavaMessagePublisher
+import graphql.execution.pubsub.MessagePublisher
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.idl.RuntimeWiring
@@ -89,9 +84,8 @@ class SubscriptionExecutionStrategyTest extends Specification {
         }
 
         where:
-        why                       | eventStreamPublisher
-        'reactive streams stream' | new ReactiveStreamsMessagePublisher(10)
-        'rxjava stream'           | new RxJavaMessagePublisher(10)
+        why               | eventStreamPublisher
+        'reactive stream' | new MessagePublisher(10)
 
     }
 
@@ -135,9 +129,8 @@ class SubscriptionExecutionStrategyTest extends Specification {
         messages[0].data == ["newsFeed": [sender: "sender0", text: "text0"]]
 
         where:
-        why                       | eventStreamPublisher
-        'reactive streams stream' | new ReactiveStreamsMessagePublisher(1)
-        'rxjava stream'           | new RxJavaMessagePublisher(1)
+        why               | eventStreamPublisher
+        'reactive stream' | new MessagePublisher(1)
     }
 
 
@@ -187,9 +180,8 @@ class SubscriptionExecutionStrategyTest extends Specification {
         capturingSubscriber2.events.size() == 10
 
         where:
-        why                       | eventStreamPublisher
-        'reactive streams stream' | new ReactiveStreamsMessagePublisher(10)
-        'rxjava stream'           | new RxJavaMessagePublisher(10)
+        why               | eventStreamPublisher
+        'reactive stream' | new MessagePublisher(10)
 
     }
 
@@ -228,7 +220,7 @@ class SubscriptionExecutionStrategyTest extends Specification {
         DataFetcher newMessageDF = new DataFetcher() {
             @Override
             Object get(DataFetchingEnvironment environment) {
-                return new ReactiveStreamsMessagePublisher(10) {
+                return new MessagePublisher(10) {
                     //
                     // we blow up half way in
                     @Override
@@ -281,7 +273,7 @@ class SubscriptionExecutionStrategyTest extends Specification {
         DataFetcher newMessageDF = new DataFetcher() {
             @Override
             Object get(DataFetchingEnvironment environment) {
-                return new ReactiveStreamsMessagePublisher(10) {
+                return new MessagePublisher(10) {
                     @Override
                     protected Message examineMessage(Message message, Integer at) {
                         if (at == 5) {

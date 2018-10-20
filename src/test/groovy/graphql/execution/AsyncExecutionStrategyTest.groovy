@@ -244,11 +244,6 @@ class AsyncExecutionStrategyTest extends Specification {
                             }
 
                             @Override
-                            public void onDispatched(CompletableFuture<ExecutionResult> result) {
-
-                            }
-
-                            @Override
                             public void onCompleted(ExecutionResult result, Throwable t) {
 
                             }

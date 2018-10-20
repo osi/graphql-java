@@ -15,12 +15,7 @@ import org.dataloader.DataLoaderOptions
 import org.dataloader.DataLoaderRegistry
 import spock.lang.Specification
 
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.CompletionStage
-import java.util.concurrent.SynchronousQueue
-import java.util.concurrent.ThreadFactory
-import java.util.concurrent.ThreadPoolExecutor
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.*
 
 import static graphql.schema.idl.TypeRuntimeWiring.newTypeWiring
 
@@ -183,6 +178,7 @@ class DataLoaderHangingTest extends Specification {
                     }
                         """)
                     .build())
+                    .toFuture()
             result.whenComplete({ res, error ->
                 if (error) {
                     throw error

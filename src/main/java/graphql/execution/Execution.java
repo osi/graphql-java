@@ -24,11 +24,10 @@ import graphql.schema.GraphQLSchema;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Mono;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 import static graphql.Assert.assertShouldNeverHappen;
 import static graphql.execution.ExecutionContextBuilder.newExecutionContextBuilder;
@@ -37,7 +36,6 @@ import static graphql.execution.ExecutionTypeInfo.newTypeInfo;
 import static graphql.language.OperationDefinition.Operation.MUTATION;
 import static graphql.language.OperationDefinition.Operation.QUERY;
 import static graphql.language.OperationDefinition.Operation.SUBSCRIPTION;
-import static java.util.concurrent.CompletableFuture.completedFuture;
 
 @Internal
 public class Execution {
@@ -56,81 +54,90 @@ public class Execution {
         this.instrumentation = instrumentation;
     }
 
-    public CompletableFuture<ExecutionResult> execute(Document document, GraphQLSchema graphQLSchema, ExecutionId executionId, ExecutionInput executionInput, InstrumentationState instrumentationState) {
+    public Mono<ExecutionResult> execute(Document document, GraphQLSchema graphQLSchema, ExecutionId executionId,
+                                         ExecutionInput executionInput, InstrumentationState instrumentationState) {
+        return Mono.defer(() -> {
+            NodeUtil.GetOperationResult getOperationResult = NodeUtil.getOperation(document,
+                                                                                   executionInput.getOperationName());
+            Map<String, FragmentDefinition> fragmentsByName = getOperationResult.fragmentsByName;
+            OperationDefinition operationDefinition = getOperationResult.operationDefinition;
 
-        NodeUtil.GetOperationResult getOperationResult = NodeUtil.getOperation(document, executionInput.getOperationName());
-        Map<String, FragmentDefinition> fragmentsByName = getOperationResult.fragmentsByName;
-        OperationDefinition operationDefinition = getOperationResult.operationDefinition;
+            ValuesResolver valuesResolver = new ValuesResolver();
+            Map<String, Object> inputVariables = executionInput.getVariables();
+            List<VariableDefinition> variableDefinitions = operationDefinition.getVariableDefinitions();
 
-        ValuesResolver valuesResolver = new ValuesResolver();
-        Map<String, Object> inputVariables = executionInput.getVariables();
-        List<VariableDefinition> variableDefinitions = operationDefinition.getVariableDefinitions();
-
-        Map<String, Object> coercedVariables;
-        try {
-            coercedVariables = valuesResolver.coerceArgumentValues(graphQLSchema, variableDefinitions, inputVariables);
-        } catch (RuntimeException rte) {
-            if (rte instanceof GraphQLError) {
-                return completedFuture(new ExecutionResultImpl((GraphQLError) rte));
-            }
-            throw rte;
-        }
-
-        ExecutionContext executionContext = newExecutionContextBuilder()
-                .instrumentation(instrumentation)
-                .instrumentationState(instrumentationState)
-                .executionId(executionId)
-                .graphQLSchema(graphQLSchema)
-                .queryStrategy(queryStrategy)
-                .mutationStrategy(mutationStrategy)
-                .subscriptionStrategy(subscriptionStrategy)
-                .context(executionInput.getContext())
-                .root(executionInput.getRoot())
-                .fragmentsByName(fragmentsByName)
-                .variables(coercedVariables)
-                .document(document)
-                .operationDefinition(operationDefinition)
-                .build();
+            return Mono.fromCallable(
+                    () -> valuesResolver.coerceArgumentValues(graphQLSchema, variableDefinitions, inputVariables))
+                       .flatMap(coercedVariables -> {
+                           ExecutionContext executionContext = newExecutionContextBuilder()
+                                   .instrumentation(instrumentation)
+                                   .instrumentationState(instrumentationState)
+                                   .executionId(executionId)
+                                   .graphQLSchema(graphQLSchema)
+                                   .queryStrategy(queryStrategy)
+                                   .mutationStrategy(mutationStrategy)
+                                   .subscriptionStrategy(subscriptionStrategy)
+                                   .context(executionInput.getContext())
+                                   .root(executionInput.getRoot())
+                                   .fragmentsByName(fragmentsByName)
+                                   .variables(coercedVariables)
+                                   .document(document)
+                                   .operationDefinition(operationDefinition)
+                                   .build();
 
 
-        InstrumentationExecutionParameters parameters = new InstrumentationExecutionParameters(
-                executionInput, graphQLSchema, instrumentationState
-        );
-        executionContext = instrumentation.instrumentExecutionContext(executionContext, parameters);
-        return executeOperation(executionContext, parameters, executionInput.getRoot(), executionContext.getOperationDefinition());
+                           InstrumentationExecutionParameters parameters = new InstrumentationExecutionParameters(
+                                   executionInput, graphQLSchema, instrumentationState
+                           );
+                           executionContext = instrumentation.instrumentExecutionContext(executionContext, parameters);
+                           return executeOperation(executionContext, executionInput.getRoot(),
+                                                   executionContext.getOperationDefinition());
+                       })
+                       .onErrorResume(t -> t instanceof GraphQLError,
+                                      e -> Mono.just(new ExecutionResultImpl((GraphQLError) e)));
+        });
     }
 
 
-    private CompletableFuture<ExecutionResult> executeOperation(ExecutionContext executionContext, InstrumentationExecutionParameters instrumentationExecutionParameters, Object root, OperationDefinition operationDefinition) {
+    private Mono<ExecutionResult> executeOperation(ExecutionContext executionContext, Object root, OperationDefinition operationDefinition) {
+        // TODO context-ify
+        InstrumentationExecuteOperationParameters instrumentationParams = new InstrumentationExecuteOperationParameters(
+                executionContext);
+        InstrumentationContext<ExecutionResult> executeOperationCtx = instrumentation.beginExecuteOperation(
+                instrumentationParams);
 
-        InstrumentationExecuteOperationParameters instrumentationParams = new InstrumentationExecuteOperationParameters(executionContext);
-        InstrumentationContext<ExecutionResult> executeOperationCtx = instrumentation.beginExecuteOperation(instrumentationParams);
+        return executeOperation2(executionContext, root, operationDefinition)
+                .onErrorResume(NonNullableFieldWasNullException.class,
+                               t -> {
+                                   // this means it was non null types all the way from an offending non null type
+                                   // up to the root object type and there was a a null value some where.
+                                   //
+                                   // The spec says we should return null for the data in this case
+                                   //
+                                   // http://facebook.github.io/graphql/#sec-Errors-and-Non-Nullability
+                                   //
+                                   return Mono.just(new ExecutionResultImpl(null, executionContext.getErrors()));
+                               }
+                )
+                .transform(executeOperationCtx::instrument)
+                .transform(m -> deferSupport(executionContext, m));
+    }
 
+    private Mono<ExecutionResult> executeOperation2(ExecutionContext executionContext, Object root, OperationDefinition operationDefinition) {
         OperationDefinition.Operation operation = operationDefinition.getOperation();
-        GraphQLObjectType operationRootType;
+        GraphQLObjectType operationRootType = getOperationRootType(executionContext.getGraphQLSchema(),
+                                                                   operationDefinition);
 
-        try {
-            operationRootType = getOperationRootType(executionContext.getGraphQLSchema(), operationDefinition);
-        } catch (RuntimeException rte) {
-            if (rte instanceof GraphQLError) {
-                ExecutionResult executionResult = new ExecutionResultImpl(Collections.singletonList((GraphQLError) rte));
-                CompletableFuture<ExecutionResult> resultCompletableFuture = completedFuture(executionResult);
+        FieldCollectorParameters collectorParameters =
+                FieldCollectorParameters.newParameters()
+                                        .schema(executionContext.getGraphQLSchema())
+                                        .objectType(operationRootType)
+                                        .fragments(executionContext.getFragmentsByName())
+                                        .variables(executionContext.getVariables())
+                                        .build();
 
-                executeOperationCtx.onDispatched(resultCompletableFuture);
-                executeOperationCtx.onCompleted(executionResult, rte);
-                return resultCompletableFuture;
-            }
-            throw rte;
-        }
-
-        FieldCollectorParameters collectorParameters = FieldCollectorParameters.newParameters()
-                .schema(executionContext.getGraphQLSchema())
-                .objectType(operationRootType)
-                .fragments(executionContext.getFragmentsByName())
-                .variables(executionContext.getVariables())
-                .build();
-
-        Map<String, List<Field>> fields = fieldCollector.collectFields(collectorParameters, operationDefinition.getSelectionSet());
+        Map<String, List<Field>> fields = fieldCollector.collectFields(collectorParameters,
+                                                                       operationDefinition.getSelectionSet());
 
         ExecutionPath path = ExecutionPath.rootPath();
         ExecutionTypeInfo typeInfo = newTypeInfo().type(operationRootType).path(path).build();
@@ -144,50 +151,32 @@ public class Execution {
                 .path(path)
                 .build();
 
-        CompletableFuture<ExecutionResult> result;
-        try {
-            ExecutionStrategy executionStrategy;
-            if (operation == OperationDefinition.Operation.MUTATION) {
-                executionStrategy = mutationStrategy;
-            } else if (operation == SUBSCRIPTION) {
-                executionStrategy = subscriptionStrategy;
-            } else {
-                executionStrategy = queryStrategy;
-            }
-            log.debug("Executing '{}' query operation: '{}' using '{}' execution strategy", executionContext.getExecutionId(), operation, executionStrategy.getClass().getName());
-            result = executionStrategy.execute(executionContext, parameters);
-        } catch (NonNullableFieldWasNullException e) {
-            // this means it was non null types all the way from an offending non null type
-            // up to the root object type and there was a a null value some where.
-            //
-            // The spec says we should return null for the data in this case
-            //
-            // http://facebook.github.io/graphql/#sec-Errors-and-Non-Nullability
-            //
-            result = completedFuture(new ExecutionResultImpl(null, executionContext.getErrors()));
+        ExecutionStrategy executionStrategy;
+        if (operation == OperationDefinition.Operation.MUTATION) {
+            executionStrategy = mutationStrategy;
+        } else if (operation == SUBSCRIPTION) {
+            executionStrategy = subscriptionStrategy;
+        } else {
+            executionStrategy = queryStrategy;
         }
-
-        // note this happens NOW - not when the result completes
-        executeOperationCtx.onDispatched(result);
-
-        result = result.whenComplete(executeOperationCtx::onCompleted);
-
-        return deferSupport(executionContext, result);
+        log.debug("Executing '{}' query operation: '{}' using '{}' execution strategy",
+                  executionContext.getExecutionId(), operation, executionStrategy.getClass().getName());
+        return executionStrategy.execute(executionContext, parameters);
     }
 
     /*
      * Adds the deferred publisher if its needed at the end of the query.  This is also a good time for the deferred code to start running
      */
-    private CompletableFuture<ExecutionResult> deferSupport(ExecutionContext executionContext, CompletableFuture<ExecutionResult> result) {
-        return result.thenApply(er -> {
+    private Mono<ExecutionResult> deferSupport(ExecutionContext executionContext, Mono<ExecutionResult> result) {
+        return result.map(er -> {
             DeferSupport deferSupport = executionContext.getDeferSupport();
             if (deferSupport.isDeferDetected()) {
                 // we start the rest of the query now to maximize throughput.  We have the initial important results
                 // and now we can start the rest of the calls as early as possible (even before some one subscribes)
                 Publisher<ExecutionResult> publisher = deferSupport.startDeferredCalls();
                 return ExecutionResultImpl.newExecutionResult().from((ExecutionResultImpl) er)
-                        .addExtension(GraphQL.DEFERRED_RESULTS, publisher)
-                        .build();
+                                          .addExtension(GraphQL.DEFERRED_RESULTS, publisher)
+                                          .build();
             }
             return er;
         });
@@ -199,23 +188,27 @@ public class Execution {
         if (operation == MUTATION) {
             GraphQLObjectType mutationType = graphQLSchema.getMutationType();
             if (mutationType == null) {
-                throw new MissingRootTypeException("Schema is not configured for mutations.", operationDefinition.getSourceLocation());
+                throw new MissingRootTypeException("Schema is not configured for mutations.",
+                                                   operationDefinition.getSourceLocation());
             }
             return mutationType;
         } else if (operation == QUERY) {
             GraphQLObjectType queryType = graphQLSchema.getQueryType();
             if (queryType == null) {
-                throw new MissingRootTypeException("Schema does not define the required query root type.", operationDefinition.getSourceLocation());
+                throw new MissingRootTypeException("Schema does not define the required query root type.",
+                                                   operationDefinition.getSourceLocation());
             }
             return queryType;
         } else if (operation == SUBSCRIPTION) {
             GraphQLObjectType subscriptionType = graphQLSchema.getSubscriptionType();
             if (subscriptionType == null) {
-                throw new MissingRootTypeException("Schema is not configured for subscriptions.", operationDefinition.getSourceLocation());
+                throw new MissingRootTypeException("Schema is not configured for subscriptions.",
+                                                   operationDefinition.getSourceLocation());
             }
             return subscriptionType;
         } else {
-            return assertShouldNeverHappen("Unhandled case.  An extra operation enum has been added without code support");
+            return assertShouldNeverHappen(
+                    "Unhandled case.  An extra operation enum has been added without code support");
         }
     }
 }

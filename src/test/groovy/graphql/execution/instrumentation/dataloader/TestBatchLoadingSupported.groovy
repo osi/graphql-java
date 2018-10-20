@@ -5,8 +5,6 @@ import graphql.GraphQL
 import graphql.StarWarsData
 import graphql.TypeResolutionEnvironment
 import graphql.execution.AsyncSerialExecutionStrategy
-import graphql.execution.ExecutorServiceExecutionStrategy
-import graphql.execution.batched.BatchedExecutionStrategy
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLObjectType
@@ -21,7 +19,6 @@ import spock.lang.Unroll
 
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
-import java.util.concurrent.ForkJoinPool
 import java.util.stream.Collectors
 
 import static graphql.TestUtil.schemaFile
@@ -233,12 +230,9 @@ class TestBatchLoadingSupported extends Specification {
         ]
 
         where:
-        name                               | executionStrategy                                               || _
-        "AsyncExecutionStrategy"           | new AsyncSerialExecutionStrategy()                              || _
-        "AsyncSerialExecutionStrategy"     | new AsyncSerialExecutionStrategy()                              || _
-        "BatchedExecutionStrategy"         | new BatchedExecutionStrategy()                                  || _
-        "ExecutorServiceExecutionStrategy" | new ExecutorServiceExecutionStrategy(ForkJoinPool.commonPool()) || _
-
+        name                           | executionStrategy                  || _
+        "AsyncExecutionStrategy"       | new AsyncSerialExecutionStrategy() || _
+        "AsyncSerialExecutionStrategy" | new AsyncSerialExecutionStrategy() || _
     }
 
 

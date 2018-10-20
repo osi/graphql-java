@@ -59,7 +59,7 @@ class NullVariableCoercionTest extends Specification {
 
         ExecutionResult varResult = graphQL
             .executeAsync(varInput)
-            .join()
+            .block()
 
         then:
 

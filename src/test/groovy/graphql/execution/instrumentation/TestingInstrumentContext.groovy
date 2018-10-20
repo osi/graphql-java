@@ -1,7 +1,5 @@
 package graphql.execution.instrumentation
 
-import java.util.concurrent.CompletableFuture
-
 class TestingInstrumentContext<T> implements InstrumentationContext<T> {
     def op
     def start = System.currentTimeMillis()
@@ -20,10 +18,6 @@ class TestingInstrumentContext<T> implements InstrumentationContext<T> {
         this.executionList << "end:$op"
         def ms = System.currentTimeMillis() - start
         println("\tEnded $op in ${ms}ms")
-    }
-
-    @Override
-    void onDispatched(CompletableFuture<T> result) {
     }
 
     @Override

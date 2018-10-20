@@ -2,6 +2,8 @@ package graphql.execution;
 
 import graphql.Assert;
 import graphql.Internal;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -10,16 +12,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 @Internal
 @SuppressWarnings("FutureReturnValueIgnored")
 public class Async {
-
-    @FunctionalInterface
-    public interface CFFactory<T, U> {
-        CompletableFuture<U> apply(T input, int index, List<U> previousResults);
-    }
 
     public static <U> CompletableFuture<List<U>> each(List<CompletableFuture<U>> futures) {
         CompletableFuture<List<U>> overallResult = new CompletableFuture<>();
@@ -40,23 +38,10 @@ public class Async {
         return overallResult;
     }
 
-    public static <T, U> CompletableFuture<List<U>> each(Iterable<T> list, BiFunction<T, Integer, CompletableFuture<U>> cfFactory) {
-        List<CompletableFuture<U>> futures = new ArrayList<>();
-        int index = 0;
-        for (T t : list) {
-            CompletableFuture<U> cf;
-            try {
-                cf = cfFactory.apply(t, index++);
-                Assert.assertNotNull(cf, "cfFactory must return a non null value");
-            } catch (Exception e) {
-                cf = new CompletableFuture<>();
-                // Async.each makes sure that it is not a CompletionException inside a CompletionException
-                cf.completeExceptionally(new CompletionException(e));
-            }
-            futures.add(cf);
-        }
-        return each(futures);
-
+    public static <T, U> Flux<U> each(Iterable<T> list, BiFunction<Long, T, Mono<U>> cfFactory) {
+        return Flux.fromIterable(list)
+                   .index(cfFactory)
+                   .flatMapSequential(Function.identity());
     }
 
     public static <T, U> CompletableFuture<List<U>> eachSequentially(Iterable<T> list, CFFactory<T, U> cfFactory) {
@@ -88,7 +73,6 @@ public class Async {
         });
     }
 
-
     /**
      * Turns an object T into a CompletableFuture if its not already
      *
@@ -97,12 +81,16 @@ public class Async {
      *
      * @return a CompletableFuture
      */
-    public static <T> CompletableFuture<T> toCompletableFuture(T t) {
+    public static <T> Mono<T> toMono(T t) {
+        if (t instanceof Mono) {
+            //noinspection unchecked
+            return ((Mono<T>) t);
+        }
         if (t instanceof CompletionStage) {
             //noinspection unchecked
-            return ((CompletionStage<T>) t).toCompletableFuture();
+            return Mono.fromCompletionStage((CompletionStage<T>) t);
         } else {
-            return CompletableFuture.completedFuture(t);
+            return Mono.justOrEmpty(t);
         }
     }
 
@@ -130,6 +118,11 @@ public class Async {
             }
             target.complete(o);
         });
+    }
+
+    @FunctionalInterface
+    public interface CFFactory<T, U> {
+        CompletableFuture<U> apply(T input, int index, List<U> previousResults);
     }
 
 }

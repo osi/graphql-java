@@ -15,9 +15,9 @@ import graphql.language.Document;
 import graphql.schema.DataFetcher;
 import graphql.schema.GraphQLSchema;
 import graphql.validation.ValidationError;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * An implementation of {@link graphql.execution.instrumentation.Instrumentation} that does nothing.  It can be used
@@ -32,11 +32,6 @@ public class SimpleInstrumentation implements Instrumentation {
     public static final SimpleInstrumentation INSTANCE = new SimpleInstrumentation();
 
     public SimpleInstrumentation() {
-    }
-
-    @Override
-    public InstrumentationState createState() {
-        return null;
     }
 
     @Override
@@ -58,8 +53,8 @@ public class SimpleInstrumentation implements Instrumentation {
     public ExecutionStrategyInstrumentationContext beginExecutionStrategy(InstrumentationExecutionStrategyParameters parameters) {
         return new ExecutionStrategyInstrumentationContext() {
             @Override
-            public void onDispatched(CompletableFuture<ExecutionResult> result) {
-
+            public Mono<ExecutionResult> onDispatched(Mono<ExecutionResult> result) {
+                return result;
             }
 
             @Override
@@ -73,8 +68,8 @@ public class SimpleInstrumentation implements Instrumentation {
     public DeferredFieldInstrumentationContext beginDeferredField(InstrumentationDeferredFieldParameters parameters) {
         return new DeferredFieldInstrumentationContext() {
             @Override
-            public void onDispatched(CompletableFuture<ExecutionResult> result) {
-
+            public Mono<ExecutionResult> onDispatched(Mono<ExecutionResult> result) {
+                return result;
             }
 
             @Override
@@ -126,8 +121,8 @@ public class SimpleInstrumentation implements Instrumentation {
     }
 
     @Override
-    public CompletableFuture<ExecutionResult> instrumentExecutionResult(ExecutionResult executionResult, InstrumentationExecutionParameters parameters) {
-        return CompletableFuture.completedFuture(executionResult);
+    public Mono<ExecutionResult> instrumentExecutionResult(ExecutionResult executionResult, InstrumentationExecutionParameters parameters) {
+        return Mono.just(executionResult);
     }
 
 }

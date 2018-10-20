@@ -15,6 +15,7 @@ import graphql.language.Document;
 import graphql.schema.DataFetcher;
 import graphql.schema.GraphQLSchema;
 import graphql.validation.ValidationError;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -41,7 +42,7 @@ public interface Instrumentation {
      * @return a state object that is passed to each method
      */
     default InstrumentationState createState() {
-        return null;
+        return InstrumentationState.EMPTY;
     }
 
     /**
@@ -198,13 +199,13 @@ public interface Instrumentation {
     /**
      * This is called to allow instrumentation to instrument the execution result in some way
      *
-     * @param executionResult {@link java.util.concurrent.CompletableFuture} of the result to instrument
+     * @param executionResult {@link CompletableFuture} of the result to instrument
      * @param parameters      the parameters to this step
      *
      * @return a new execution result completable future
      */
-    default CompletableFuture<ExecutionResult> instrumentExecutionResult(ExecutionResult executionResult, InstrumentationExecutionParameters parameters) {
-        return CompletableFuture.completedFuture(executionResult);
+    default Mono<ExecutionResult> instrumentExecutionResult(ExecutionResult executionResult, InstrumentationExecutionParameters parameters) {
+        return Mono.just(executionResult);
     }
 
 }

@@ -1,29 +1,13 @@
 package graphql.execution
 
-import graphql.Assert
-import graphql.DataFetchingErrorGraphQLError
-import graphql.ExceptionWhileDataFetching
-import graphql.ExecutionResult
-import graphql.Scalars
-import graphql.SerializationError
-import graphql.TypeMismatchError
+import graphql.*
 import graphql.execution.instrumentation.SimpleInstrumentation
-import graphql.language.Argument
-import graphql.language.Field
-import graphql.language.OperationDefinition
-import graphql.language.SourceLocation
-import graphql.language.StringValue
+import graphql.language.*
 import graphql.parser.Parser
-import graphql.schema.Coercing
-import graphql.schema.DataFetcher
-import graphql.schema.DataFetchingEnvironment
-import graphql.schema.GraphQLEnumType
-import graphql.schema.GraphQLFieldDefinition
-import graphql.schema.GraphQLScalarType
-import graphql.schema.GraphQLSchema
+import graphql.schema.*
+import reactor.core.publisher.Mono
 import spock.lang.Specification
 
-import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionException
 
 import static ExecutionStrategyParameters.newParameters
@@ -46,7 +30,7 @@ class ExecutionStrategyTest extends Specification {
         executionStrategy = new ExecutionStrategy(dataFetcherExceptionHandler) {
 
             @Override
-            CompletableFuture<ExecutionResult> execute(ExecutionContext executionContext, ExecutionStrategyParameters parameters) {
+            Mono<ExecutionResult> execute(ExecutionContext executionContext, ExecutionStrategyParameters parameters) {
                 return Assert.assertShouldNeverHappen("should not be called")
             }
         }
@@ -562,7 +546,7 @@ class ExecutionStrategyTest extends Specification {
             }
         }) {
             @Override
-            CompletableFuture<ExecutionResult> execute(ExecutionContext ec, ExecutionStrategyParameters p) throws NonNullableFieldWasNullException {
+            Mono<ExecutionResult> execute(ExecutionContext ec, ExecutionStrategyParameters p) throws NonNullableFieldWasNullException {
                 null
             }
         }
@@ -588,7 +572,7 @@ class ExecutionStrategyTest extends Specification {
 
         ExecutionStrategy overridingStrategy = new ExecutionStrategy() {
             @Override
-            CompletableFuture<ExecutionResult> execute(ExecutionContext ec, ExecutionStrategyParameters p) throws NonNullableFieldWasNullException {
+            Mono<ExecutionResult> execute(ExecutionContext ec, ExecutionStrategyParameters p) throws NonNullableFieldWasNullException {
                 null
             }
         }

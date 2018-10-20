@@ -11,7 +11,6 @@ import graphql.execution.AsyncSerialExecutionStrategy;
 import graphql.execution.DataFetcherExceptionHandler;
 import graphql.execution.DataFetcherExceptionHandlerParameters;
 import graphql.execution.ExecutionStrategy;
-import graphql.execution.ExecutorServiceExecutionStrategy;
 import graphql.language.SourceLocation;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
@@ -21,16 +20,13 @@ import graphql.schema.GraphQLSchema;
 import graphql.schema.visibility.BlockedFields;
 import graphql.schema.visibility.GraphqlFieldVisibility;
 import graphql.schema.visibility.NoIntrospectionGraphqlFieldVisibility;
+import reactor.core.publisher.Mono;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 import static graphql.StarWarsSchema.queryType;
 
@@ -65,14 +61,14 @@ public class ExecutionExamples {
         ExecutionInput executionInput = ExecutionInput.newExecutionInput().query("query { hero { name } }")
                 .build();
 
-        CompletableFuture<ExecutionResult> promise = graphQL.executeAsync(executionInput);
+        Mono<ExecutionResult> promise = graphQL.executeAsync(executionInput);
 
-        promise.thenAccept(executionResult -> {
+        promise.doOnNext(executionResult -> {
             // here you might send back the results as JSON over HTTP
             encodeResultToJsonAndSendResponse(executionResult);
         });
 
-        promise.join();
+        promise.block();
     }
 
     private GraphQL graphQL = buildSchema();
@@ -85,8 +81,8 @@ public class ExecutionExamples {
 
         // the above is equivalent to the following code (in long hand)
 
-        CompletableFuture<ExecutionResult> promise = graphQL.executeAsync(executionInput);
-        ExecutionResult executionResult2 = promise.join();
+        Mono<ExecutionResult> promise = graphQL.executeAsync(executionInput);
+        ExecutionResult executionResult2 = promise.block();
 
     }
 
@@ -128,20 +124,6 @@ public class ExecutionExamples {
                 .mutationExecutionStrategy(new AsyncSerialExecutionStrategy())
                 .build();
 
-    }
-
-    private void exampleExecutorServiceExecutionStrategy() {
-        ExecutorService executorService = new ThreadPoolExecutor(
-                2, /* core pool size 2 thread */
-                2, /* max pool size 2 thread */
-                30, TimeUnit.SECONDS,
-                new LinkedBlockingQueue<>(),
-                new ThreadPoolExecutor.CallerRunsPolicy());
-
-        GraphQL graphQL = GraphQL.newGraphQL(StarWarsSchema.starWarsSchema)
-                .queryExecutionStrategy(new ExecutorServiceExecutionStrategy(executorService))
-                .mutationExecutionStrategy(new AsyncSerialExecutionStrategy())
-                .build();
     }
 
     private void exceptionHandler() {

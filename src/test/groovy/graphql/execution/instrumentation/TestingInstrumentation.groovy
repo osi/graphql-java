@@ -3,19 +3,13 @@ package graphql.execution.instrumentation
 import graphql.ExecutionInput
 import graphql.ExecutionResult
 import graphql.execution.ExecutionContext
-import graphql.execution.instrumentation.parameters.InstrumentationDeferredFieldParameters
-import graphql.execution.instrumentation.parameters.InstrumentationExecuteOperationParameters
-import graphql.execution.instrumentation.parameters.InstrumentationExecutionParameters
-import graphql.execution.instrumentation.parameters.InstrumentationExecutionStrategyParameters
-import graphql.execution.instrumentation.parameters.InstrumentationFieldCompleteParameters
-import graphql.execution.instrumentation.parameters.InstrumentationFieldFetchParameters
-import graphql.execution.instrumentation.parameters.InstrumentationFieldParameters
-import graphql.execution.instrumentation.parameters.InstrumentationValidationParameters
+import graphql.execution.instrumentation.parameters.*
 import graphql.language.Document
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLSchema
 import graphql.validation.ValidationError
+import reactor.core.publisher.Mono
 
 import java.util.concurrent.CompletableFuture
 
@@ -124,7 +118,7 @@ class TestingInstrumentation implements Instrumentation {
     }
 
     @Override
-    CompletableFuture<ExecutionResult> instrumentExecutionResult(ExecutionResult executionResult, InstrumentationExecutionParameters parameters) {
+    Mono<ExecutionResult> instrumentExecutionResult(ExecutionResult executionResult, InstrumentationExecutionParameters parameters) {
         assert parameters.getInstrumentationState() == instrumentationState
         return CompletableFuture.completedFuture(executionResult)
     }

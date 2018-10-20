@@ -23,11 +23,11 @@ import org.dataloader.DataLoaderRegistry;
 import org.dataloader.stats.Statistics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Mono;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 /**
@@ -135,9 +135,7 @@ public class DataLoaderDispatcherInstrumentation extends SimpleInstrumentation {
         //
         if (executionContext.getOperationDefinition().getOperation() == OperationDefinition.Operation.QUERY) {
             ExecutionStrategy queryStrategy = executionContext.getQueryStrategy();
-            if (queryStrategy instanceof AsyncExecutionStrategy) {
-                return true;
-            }
+            return queryStrategy instanceof AsyncExecutionStrategy;
         }
         return false;
     }
@@ -161,20 +159,19 @@ public class DataLoaderDispatcherInstrumentation extends SimpleInstrumentation {
     }
 
     @Override
-    public CompletableFuture<ExecutionResult> instrumentExecutionResult(ExecutionResult executionResult, InstrumentationExecutionParameters parameters) {
+    public Mono<ExecutionResult> instrumentExecutionResult(ExecutionResult executionResult, InstrumentationExecutionParameters parameters) {
         if (!options.isIncludeStatistics()) {
-            return CompletableFuture.completedFuture(executionResult);
+            return Mono.just(executionResult);
         }
         DataLoaderDispatcherInstrumentationState state = parameters.getInstrumentationState();
         Map<Object, Object> currentExt = executionResult.getExtensions();
-        Map<Object, Object> statsMap = new LinkedHashMap<>();
-        statsMap.putAll(currentExt == null ? Collections.emptyMap() : currentExt);
+        Map<Object, Object> statsMap = new LinkedHashMap<>(currentExt == null ? Collections.emptyMap() : currentExt);
         Map<Object, Object> dataLoaderStats = buildStatsMap(state);
         statsMap.put("dataloader", dataLoaderStats);
 
         log.debug("Data loader stats : {}", dataLoaderStats);
 
-        return CompletableFuture.completedFuture(new ExecutionResultImpl(executionResult.getData(), executionResult.getErrors(), statsMap));
+        return Mono.just(new ExecutionResultImpl(executionResult.getData(), executionResult.getErrors(), statsMap));
     }
 
     private Map<Object, Object> buildStatsMap(DataLoaderDispatcherInstrumentationState state) {
