@@ -1,3 +1,10 @@
+# this is an experimental fork!
+
+This is an experiment to see how the engine would work by using [Project Reactor](http://projectreactor.io) as the
+asynchronous plumbing instead of the JDK's CompletableFuture
+
+---
+
 # graphql-java
 
 [![Join the chat at https://gitter.im/graphql-java/graphql-java](https://badges.gitter.im/graphql-java/graphql-java.svg)](https://gitter.im/graphql-java/graphql-java?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
