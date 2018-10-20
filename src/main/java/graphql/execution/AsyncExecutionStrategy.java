@@ -66,7 +66,7 @@ public class AsyncExecutionStrategy extends AbstractAsyncExecutionStrategy {
                             }
                    )
                    .collectList()
-                   // TODO look into this - i think for async
+                   // TODO look into this - only seems to be needed for field level tracking approach
                    .doOnNext(l -> executionStrategyCtx.onFieldValuesInfo(l.stream()
                                                                           .map(Tuple2::getT2)
                                                                           .collect(Collectors.toList())))
