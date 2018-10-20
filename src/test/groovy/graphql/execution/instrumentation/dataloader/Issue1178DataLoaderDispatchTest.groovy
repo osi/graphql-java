@@ -9,6 +9,7 @@ import graphql.schema.idl.RuntimeWiring
 import org.dataloader.BatchLoader
 import org.dataloader.DataLoader
 import org.dataloader.DataLoaderRegistry
+import spock.lang.Ignore
 import spock.lang.Specification
 
 import java.util.concurrent.CompletableFuture
@@ -21,6 +22,7 @@ class Issue1178DataLoaderDispatchTest extends Specification {
 
     public static final int NUM_OF_REPS = 100
 
+    @Ignore
     def "shouldn't dispatch twice in multithreaded env"() {
         setup:
         def sdl = """

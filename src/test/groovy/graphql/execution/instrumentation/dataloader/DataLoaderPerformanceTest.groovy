@@ -8,19 +8,10 @@ import graphql.execution.instrumentation.Instrumentation
 import org.awaitility.Awaitility
 import org.dataloader.DataLoaderRegistry
 import org.reactivestreams.Publisher
+import spock.lang.Ignore
 import spock.lang.Specification
 
-import static graphql.execution.instrumentation.dataloader.DataLoaderPerformanceData.getDeferredQuery
-import static graphql.execution.instrumentation.dataloader.DataLoaderPerformanceData.getExpectedData
-import static graphql.execution.instrumentation.dataloader.DataLoaderPerformanceData.getExpectedDeferredData
-import static graphql.execution.instrumentation.dataloader.DataLoaderPerformanceData.getExpectedExpensiveData
-import static graphql.execution.instrumentation.dataloader.DataLoaderPerformanceData.getExpectedExpensiveDeferredData
-import static graphql.execution.instrumentation.dataloader.DataLoaderPerformanceData.getExpectedListOfDeferredData
-import static graphql.execution.instrumentation.dataloader.DataLoaderPerformanceData.getExpensiveDeferredQuery
-import static graphql.execution.instrumentation.dataloader.DataLoaderPerformanceData.getExpensiveQuery
-import static graphql.execution.instrumentation.dataloader.DataLoaderPerformanceData.getQuery
-import static graphql.execution.instrumentation.dataloader.DataLoaderPerformanceData.setupDataLoaderRegistry
-import static graphql.execution.instrumentation.dataloader.DataLoaderPerformanceData.setupGraphQL
+import static graphql.execution.instrumentation.dataloader.DataLoaderPerformanceData.*
 
 class DataLoaderPerformanceTest extends Specification {
 
@@ -93,6 +84,7 @@ class DataLoaderPerformanceTest extends Specification {
         BatchCompareDataFetchers.productsForDepartmentsBatchLoaderCounter.get() == 1
     }
 
+    @Ignore
     def "data loader will work with deferred queries"() {
 
         when:
@@ -120,6 +112,7 @@ class DataLoaderPerformanceTest extends Specification {
         BatchCompareDataFetchers.productsForDepartmentsBatchLoaderCounter.get() == 3
     }
 
+    @Ignore
     def "data loader will work with deferred queries on multiple levels deep"() {
 
         when:

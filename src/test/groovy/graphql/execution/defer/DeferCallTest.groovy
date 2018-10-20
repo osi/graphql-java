@@ -18,7 +18,7 @@ class DeferCallTest extends Specification {
         when:
         def future = call.invoke()
         then:
-        future.join().data == "some data"
+        future.block().data == "some data"
     }
 
     def "test error capture happens via CF"() {
@@ -33,7 +33,7 @@ class DeferCallTest extends Specification {
 
         when:
         def future = call.invoke()
-        def er = future.join()
+        def er = future.block()
 
         then:
         er.errors.size() == 3

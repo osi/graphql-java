@@ -9,6 +9,7 @@ import graphql.schema.idl.SchemaParser
 import org.dataloader.BatchLoader
 import org.dataloader.DataLoader
 import org.dataloader.DataLoaderRegistry
+import spock.lang.Ignore
 import spock.lang.Specification
 
 import java.util.concurrent.CompletableFuture
@@ -18,6 +19,7 @@ import static graphql.schema.idl.TypeRuntimeWiring.newTypeWiring
 
 class DataLoaderTypeMismatchTest extends Specification {
 
+    @Ignore
     def "when actual field value return type is different from expected return type, then it should not hang execution"() {
         setup:
         def sdl = """

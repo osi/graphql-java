@@ -13,6 +13,7 @@ import graphql.schema.idl.RuntimeWiring
 import org.dataloader.BatchLoader
 import org.dataloader.DataLoader
 import org.dataloader.DataLoaderRegistry
+import spock.lang.Ignore
 import spock.lang.Specification
 
 import java.util.concurrent.CompletableFuture
@@ -179,6 +180,7 @@ class PeopleCompaniesAndProductsDataLoaderTest extends Specification {
         return registry
     }
 
+    @Ignore
     def "ensure performant loading with field tracking"() {
 
         DataLoaderRegistry registry = buildRegistry()
