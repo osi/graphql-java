@@ -288,8 +288,8 @@ public abstract class ExecutionStrategy {
                                   }
                    )
                    .transform(fetchCtx::instrument)
-                   .map(result -> unboxPossibleDataFetcherResult(executionContext, parameters, result))
-                   .flatMap(this::unboxPossibleOptional);
+                   .flatMap(result -> unboxPossibleOptional(
+                           unboxPossibleDataFetcherResult(executionContext, parameters, result)));
     }
 
     Object unboxPossibleDataFetcherResult(ExecutionContext executionContext,
@@ -702,7 +702,7 @@ public abstract class ExecutionStrategy {
             }
         }
 
-        return Mono.just(result);
+        return Mono.justOrEmpty(result);
     }
 
     /**
