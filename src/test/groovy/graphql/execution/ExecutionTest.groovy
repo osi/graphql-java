@@ -8,6 +8,7 @@ import graphql.execution.instrumentation.InstrumentationState
 import graphql.execution.instrumentation.SimpleInstrumentation
 import graphql.parser.Parser
 import reactor.core.publisher.Mono
+import reactor.util.context.Context
 import spock.lang.Specification
 
 import static java.util.Collections.emptyList
@@ -55,6 +56,8 @@ class ExecutionTest extends Specification {
 
         when:
         execution.execute(document, MutationSchema.schema, ExecutionId.generate(), emptyExecutionInput)
+                .subscriberContext(Context.of(InstrumentationState.class, instrumentationState))
+                .block()
 
         then:
         queryStrategy.execute == 1
@@ -75,6 +78,8 @@ class ExecutionTest extends Specification {
 
         when:
         execution.execute(document, MutationSchema.schema, ExecutionId.generate(), emptyExecutionInput)
+                .subscriberContext(Context.of(InstrumentationState.class, instrumentationState))
+                .block()
 
         then:
         queryStrategy.execute == 0
@@ -95,6 +100,8 @@ class ExecutionTest extends Specification {
 
         when:
         execution.execute(document, MutationSchema.schema, ExecutionId.generate(), emptyExecutionInput)
+                .subscriberContext(Context.of(InstrumentationState.class, instrumentationState))
+                .block()
 
         then:
         queryStrategy.execute == 0
