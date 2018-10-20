@@ -8,8 +8,6 @@ import graphql.schema.*
 import reactor.core.publisher.Mono
 import spock.lang.Specification
 
-import java.util.concurrent.CompletionException
-
 import static ExecutionStrategyParameters.newParameters
 import static graphql.Scalars.GraphQLString
 import static graphql.schema.GraphQLArgument.newArgument
@@ -82,7 +80,7 @@ class ExecutionStrategyTest extends Specification {
                 .build()
 
         when:
-        executionStrategy.completeValue(executionContext, parameters)
+        executionStrategy.completeValue(executionContext, parameters).block()
 
         then:
         1 * executionContext.queryStrategy.execute(_, _)
@@ -109,7 +107,8 @@ class ExecutionStrategyTest extends Specification {
                 .build()
 
         when:
-        def executionResult = executionStrategy.completeValue(executionContext, parameters).fieldValue.join()
+        def executionResult = executionStrategy.completeValue(executionContext, parameters)
+                .flatMap({ i -> i.fieldValue }).block()
 
         then:
         executionResult.data == result
@@ -130,7 +129,8 @@ class ExecutionStrategyTest extends Specification {
                 .build()
 
         when:
-        def executionResult = executionStrategy.completeValue(executionContext, parameters).fieldValue.join()
+        def executionResult = executionStrategy.completeValue(executionContext, parameters)
+                .flatMap({ i -> i.fieldValue }).block()
 
         then:
         executionResult.data == expected
@@ -156,11 +156,10 @@ class ExecutionStrategyTest extends Specification {
                 .build()
 
         when:
-        executionStrategy.completeValue(executionContext, parameters).fieldValue.join()
+        executionStrategy.completeValue(executionContext, parameters).flatMap({ i -> i.fieldValue }).block()
 
         then:
-        def e = thrown(CompletionException)
-        e.getCause() instanceof NonNullableFieldWasNullException
+        thrown(NonNullableFieldWasNullException)
     }
 
     def "completes value for java.util.OptionalInt"() {
@@ -178,14 +177,15 @@ class ExecutionStrategyTest extends Specification {
                 .build()
 
         when:
-        def executionResult = executionStrategy.completeValue(executionContext, parameters).fieldValue.join()
+        def executionResult = executionStrategy.completeValue(executionContext, parameters)
+                .flatMap({ i -> i.fieldValue }).block()
 
         then:
         executionResult.data == expected
 
         where:
-        result                    || expected
-        OptionalInt.of(10)      || "10"
+        result              || expected
+        OptionalInt.of(10)  || "10"
         OptionalInt.empty() || null
     }
 
@@ -204,11 +204,11 @@ class ExecutionStrategyTest extends Specification {
                 .build()
 
         when:
-        executionStrategy.completeValue(executionContext, parameters).fieldValue.join()
+        executionStrategy.completeValue(executionContext, parameters)
+                .flatMap({ i -> i.fieldValue }).block()
 
         then:
-        def e = thrown(CompletionException)
-        e.getCause() instanceof NonNullableFieldWasNullException
+        thrown(NonNullableFieldWasNullException)
     }
 
     def "completes value for java.util.OptionalDouble"() {
@@ -226,14 +226,15 @@ class ExecutionStrategyTest extends Specification {
                 .build()
 
         when:
-        def executionResult = executionStrategy.completeValue(executionContext, parameters).fieldValue.join()
+        def executionResult = executionStrategy.completeValue(executionContext, parameters)
+                .flatMap({ i -> i.fieldValue }).block()
 
         then:
         executionResult.data == expected
 
         where:
-        result                    || expected
-        OptionalDouble.of(10)      || "10.0"
+        result                 || expected
+        OptionalDouble.of(10)  || "10.0"
         OptionalDouble.empty() || null
     }
 
@@ -252,11 +253,11 @@ class ExecutionStrategyTest extends Specification {
                 .build()
 
         when:
-        executionStrategy.completeValue(executionContext, parameters).fieldValue.join()
+        executionStrategy.completeValue(executionContext, parameters)
+                .flatMap({ i -> i.fieldValue }).block()
 
         then:
-        def e = thrown(CompletionException)
-        e.getCause() instanceof NonNullableFieldWasNullException
+        thrown(NonNullableFieldWasNullException)
     }
 
     def "completes value for java.util.OptionalLong"() {
@@ -274,14 +275,15 @@ class ExecutionStrategyTest extends Specification {
                 .build()
 
         when:
-        def executionResult = executionStrategy.completeValue(executionContext, parameters).fieldValue.join()
+        def executionResult = executionStrategy.completeValue(executionContext, parameters)
+                .flatMap({ i -> i.fieldValue }).block()
 
         then:
         executionResult.data == expected
 
         where:
-        result                    || expected
-        OptionalLong.of(10)      || "10"
+        result               || expected
+        OptionalLong.of(10)  || "10"
         OptionalLong.empty() || null
     }
 
@@ -300,11 +302,10 @@ class ExecutionStrategyTest extends Specification {
                 .build()
 
         when:
-        executionStrategy.completeValue(executionContext, parameters).fieldValue.join()
+        executionStrategy.completeValue(executionContext, parameters).flatMap({ i -> i.fieldValue }).block()
 
         then:
-        def e = thrown(CompletionException)
-        e.getCause() instanceof NonNullableFieldWasNullException
+        thrown(NonNullableFieldWasNullException)
     }
 
     def "completes value for an array"() {
@@ -323,7 +324,7 @@ class ExecutionStrategyTest extends Specification {
                 .build()
 
         when:
-        def executionResult = executionStrategy.completeValue(executionContext, parameters).fieldValue.join()
+        def executionResult = executionStrategy.completeValue(executionContext, parameters).flatMap({ i -> i.fieldValue }).block()
 
         then:
         executionResult.data == result
@@ -345,7 +346,7 @@ class ExecutionStrategyTest extends Specification {
                 .build()
 
         when:
-        def executionResult = executionStrategy.completeValue(executionContext, parameters).fieldValue.join()
+        def executionResult = executionStrategy.completeValue(executionContext, parameters).flatMap({ i -> i.fieldValue }).block()
 
         then:
         executionResult.data == null
@@ -370,7 +371,7 @@ class ExecutionStrategyTest extends Specification {
                 .build()
 
         when:
-        def executionResult = executionStrategy.completeValue(executionContext, parameters).fieldValue.join()
+        def executionResult = executionStrategy.completeValue(executionContext, parameters).flatMap({ i -> i.fieldValue }).block()
 
         then:
         executionResult.data == null
@@ -472,7 +473,7 @@ class ExecutionStrategyTest extends Specification {
         DataFetchingEnvironment environment
 
         when:
-        executionStrategy.resolveField(executionContext, parameters)
+        executionStrategy.resolveField(executionContext, parameters).block()
 
         then:
         1 * dataFetcher.get({ it -> environment = it } as DataFetchingEnvironment)
@@ -552,7 +553,7 @@ class ExecutionStrategyTest extends Specification {
         }
 
         when:
-        overridingStrategy.resolveField(executionContext, parameters)
+        overridingStrategy.resolveField(executionContext, parameters).block()
 
         then:
         handlerCalled == true
@@ -578,7 +579,7 @@ class ExecutionStrategyTest extends Specification {
         }
 
         when:
-        overridingStrategy.resolveField(executionContext, parameters)
+        overridingStrategy.resolveField(executionContext, parameters).block()
 
         then:
         executionContext.errors.size() == 1
@@ -623,10 +624,10 @@ class ExecutionStrategyTest extends Specification {
                 .build()
 
         when:
-        executionStrategy.resolveField(executionContext, parameters).join()
+        executionStrategy.resolveField(executionContext, parameters).block()
 
         then:
-        thrown(CompletionException)
+        thrown(Exception)
         executionContext.errors.size() == 1 // only 1 error
         executionContext.errors[0] instanceof ExceptionWhileDataFetching
     }
@@ -649,10 +650,10 @@ class ExecutionStrategyTest extends Specification {
                 .build()
 
         when:
-        def executionResult = executionStrategy.completeValue(executionContext, parameters).fieldValue
+        def executionResult = executionStrategy.completeValue(executionContext, parameters).flatMap({ i -> i.fieldValue })
 
         then:
-        executionResult.get().data == [1L, 2L, 3L]
+        executionResult.block().data == [1L, 2L, 3L]
     }
 
     def "#820 processes DataFetcherResult"() {
@@ -664,11 +665,11 @@ class ExecutionStrategyTest extends Specification {
         def typeInfo = ExecutionTypeInfo.newTypeInfo().type(fieldType).fieldDefinition(fldDef).build()
         def field = Field.newField("parent").sourceLocation(new SourceLocation(5, 10)).build()
         def parameters = newParameters()
-            .path(ExecutionPath.fromList(["parent"]))
-            .field([field])
-            .fields(["parent":[field]])
-            .typeInfo(typeInfo)
-            .build()
+                .path(ExecutionPath.fromList(["parent"]))
+                .field([field])
+                .fields(["parent": [field]])
+                .typeInfo(typeInfo)
+                .build()
 
         def executionData = ["child": [:]]
         when:
@@ -693,7 +694,7 @@ class ExecutionStrategyTest extends Specification {
         def parameters = newParameters()
                 .path(ExecutionPath.fromList(["parent"]))
                 .field([field])
-                .fields(["parent":[field]])
+                .fields(["parent": [field]])
                 .typeInfo(typeInfo)
                 .build()
 
@@ -727,10 +728,10 @@ class ExecutionStrategyTest extends Specification {
                 .build()
 
         when:
-        def executionResult = executionStrategy.completeValue(executionContext, parameters).fieldValue
+        def executionResult = executionStrategy.completeValue(executionContext, parameters).flatMap({ i -> i.fieldValue })
 
         then:
-        executionResult.get().data == [1L, 2L, 3L]
+        executionResult.block().data == [1L, 2L, 3L]
     }
 
     def "when completeValue expects GraphQLList and non iterable or non array is passed then it should yield a TypeMismatch error"() {
@@ -751,7 +752,7 @@ class ExecutionStrategyTest extends Specification {
                 .build()
 
         when:
-        def executionResult = executionStrategy.completeValue(executionContext, parameters).fieldValue.join()
+        def executionResult = executionStrategy.completeValue(executionContext, parameters).flatMap({ i -> i.fieldValue }).block()
 
         then:
         executionResult.data == null

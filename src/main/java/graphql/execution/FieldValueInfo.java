@@ -6,6 +6,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.UnaryOperator;
 
 import static graphql.Assert.assertNotNull;
 
@@ -42,6 +43,10 @@ public class FieldValueInfo {
 
     public List<FieldValueInfo> getFieldValueInfos() {
         return fieldValueInfos;
+    }
+
+    public FieldValueInfo transform(UnaryOperator<Mono<ExecutionResult>> transformer) {
+        return new FieldValueInfo(completeValueType, fieldValue.transform(transformer), fieldValueInfos);
     }
 
     public static Builder newFieldValueInfo(CompleteValueType completeValueType) {

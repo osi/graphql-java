@@ -116,6 +116,7 @@ import static graphql.schema.GraphQLTypeUtil.isList;
 public abstract class ExecutionStrategy {
 
     private static final Logger log = LoggerFactory.getLogger(ExecutionStrategy.class);
+    private static final Mono<ExecutionResult> NULL_EXECUTION_RESULT = Mono.just(new ExecutionResultImpl(null, null));
 
     protected final ValuesResolver valuesResolver = new ValuesResolver();
     protected final FieldCollector fieldCollector = new FieldCollector();
@@ -200,21 +201,21 @@ public abstract class ExecutionStrategy {
      * @throws NonNullableFieldWasNullException in the {@link FieldValueInfo#getFieldValue()} future if a non null field resolves to a null value
      */
     protected Mono<FieldValueInfo> resolveFieldWithInfo(ExecutionContext executionContext, ExecutionStrategyParameters parameters) {
-        GraphQLFieldDefinition fieldDef = getFieldDef(executionContext, parameters, parameters.getField().get(0));
 
-        InstrumentationContext<ExecutionResult> fieldCtx =
-                executionContext.getInstrumentation()
-                                .beginField(new InstrumentationFieldParameters(executionContext, fieldDef,
-                                                                               fieldTypeInfo(parameters, fieldDef)));
+        return Mono.defer(() -> {
+            GraphQLFieldDefinition fieldDef = getFieldDef(executionContext, parameters, parameters.getField().get(0));
 
-        Mono<FieldValueInfo> result = fetchField(executionContext, parameters)
-                .flatMap((fetchedValue) -> completeField(executionContext, parameters, fetchedValue));
-
-        // TODO this is never subscribed to - figure out why - perhaps push this into the getFieldValue mono
-        Mono<ExecutionResult> executionResultFuture = result.flatMap(FieldValueInfo::getFieldValue)
-                                                            .transform(fieldCtx::instrument);
-
-        return result;
+            InstrumentationContext<ExecutionResult> fieldCtx =
+                    executionContext.getInstrumentation()
+                                    .beginField(new InstrumentationFieldParameters(executionContext,
+                                                                                   fieldDef,
+                                                                                   fieldTypeInfo(parameters,
+                                                                                                 fieldDef)));
+            return fetchField(executionContext, parameters)
+                    .flatMap((fetchedValue) -> completeField(executionContext, parameters, fetchedValue))
+                    .switchIfEmpty(Mono.defer(() -> completeField(executionContext, parameters, null)))
+                    .map(fvi -> fvi.transform(m -> m.doOnSuccessOrError(fieldCtx::onCompleted)));
+        });
     }
 
     /**
@@ -267,7 +268,7 @@ public abstract class ExecutionStrategy {
         ExecutionId executionId = executionContext.getExecutionId();
 
         return Mono.fromCallable(() -> {
-            DataFetcher dataFetcher = fieldDef.getDataFetcher();
+            DataFetcher<?> dataFetcher = fieldDef.getDataFetcher();
             dataFetcher = instrumentation.instrumentDataFetcher(dataFetcher, instrumentationFieldFetchParams);
             log.debug("'{}' fetching field '{}' using data fetcher '{}'...", executionId, fieldTypeInfo.getPath(),
                       dataFetcher.getClass().getName());
@@ -296,7 +297,6 @@ public abstract class ExecutionStrategy {
                                           ExecutionStrategyParameters parameters,
                                           Object result) {
         if (result instanceof DataFetcherResult) {
-            //noinspection unchecked
             DataFetcherResult<?> dataFetcherResult = (DataFetcherResult) result;
             dataFetcherResult.getErrors().stream()
                              .map(relError -> new AbsoluteGraphQLError(parameters, relError))
@@ -381,12 +381,8 @@ public abstract class ExecutionStrategy {
 
         log.debug("'{}' completing field '{}'...", executionContext.getExecutionId(), fieldTypeInfo.getPath());
 
-        Mono<FieldValueInfo> fieldValueInfo = completeValue(executionContext, newParameters);
-
-        // TODO again with the not looking at the value that comes out..
-        fieldValueInfo.map(fvi -> fvi.getFieldValue().transform(ctxCompleteField::instrument));
-
-        return fieldValueInfo;
+        return completeValue(executionContext, newParameters)
+                .map(fvi -> fvi.transform(m -> m.doOnSuccessOrError(ctxCompleteField::onCompleted)));
     }
 
     /**
@@ -439,7 +435,7 @@ public abstract class ExecutionStrategy {
                            // and validate the field is nullable, if non-nullable throw exception
                            parameters.getNonNullFieldValidator().validate(parameters.getPath(), null);
                            // complete the field as null
-                           fieldValue = Mono.just(new ExecutionResultImpl(null, null));
+                           fieldValue = NULL_EXECUTION_RESULT;
                        }
                        return Mono.just(FieldValueInfo.newFieldValueInfo(OBJECT).fieldValue(fieldValue).build());
                    })
@@ -481,7 +477,7 @@ public abstract class ExecutionStrategy {
         })
                    .flatMap(resultIterable -> completeValueForList(executionContext, parameters, resultIterable))
                    .switchIfEmpty(Mono.just(FieldValueInfo.newFieldValueInfo(LIST)
-                                                          .fieldValue(Mono.just(new ExecutionResultImpl(null, null)))
+                                                          .fieldValue(NULL_EXECUTION_RESULT)
                                                           .build()))
                    .onErrorResume(NonNullableFieldWasNullException.class,
                                   e -> Mono.just(FieldValueInfo.newFieldValueInfo(LIST)
@@ -567,6 +563,19 @@ public abstract class ExecutionStrategy {
                    });
     }
 
+    private Mono<ExecutionResult> asExecutionResult(Mono<Object> result,
+                                                    ExecutionContext executionContext,
+                                                    ExecutionStrategyParameters parameters) {
+        return result.<ExecutionResult>map(serialized -> new ExecutionResultImpl(serialized, null))
+                .switchIfEmpty(Mono.defer(() -> {
+                    parameters.getNonNullFieldValidator().validate(parameters.getPath(), null);
+                    return NULL_EXECUTION_RESULT;
+                }))
+                .onErrorResume(CoercingSerializeException.class,
+                               e -> handleCoercionProblem(executionContext, parameters, e));
+
+    }
+
     /**
      * Called to turn an object into a scalar value according to the {@link GraphQLScalarType} by asking that scalar type to coerce the object
      * into a valid value
@@ -583,8 +592,6 @@ public abstract class ExecutionStrategy {
                                                            GraphQLScalarType scalarType,
                                                            Object result) {
         return Mono.fromCallable(() -> scalarType.getCoercing().serialize(result))
-                   .onErrorResume(CoercingSerializeException.class,
-                                  e -> handleCoercionProblem(executionContext, parameters, e))
                    .flatMap(serialized -> {
                        // TODO: fix that: this should not be handled here
                        //6.6.1 http://facebook.github.io/graphql/#sec-Field-entries
@@ -593,9 +600,7 @@ public abstract class ExecutionStrategy {
                        }
                        return Mono.just(serialized);
                    })
-                   // TODO this null check won't work because the value will never be null - need to handle empty
-                   .map(serialized -> parameters.getNonNullFieldValidator().validate(parameters.getPath(), serialized))
-                   .map(serialized -> new ExecutionResultImpl(serialized, null));
+                .transform(m -> asExecutionResult(m,executionContext, parameters));
     }
 
     /**
@@ -610,11 +615,7 @@ public abstract class ExecutionStrategy {
      */
     protected Mono<ExecutionResult> completeValueForEnum(ExecutionContext executionContext, ExecutionStrategyParameters parameters, GraphQLEnumType enumType, Object result) {
         return Mono.fromCallable(() -> enumType.getCoercing().serialize(result))
-                   .onErrorResume(CoercingSerializeException.class,
-                                  e -> handleCoercionProblem(executionContext, parameters, e))
-                   // TODO null won't be handled as expected here
-                   .map(serialized -> parameters.getNonNullFieldValidator().validate(parameters.getPath(), serialized))
-                   .map(serialized -> new ExecutionResultImpl(serialized, null));
+                   .transform(m -> asExecutionResult(m,executionContext, parameters));
     }
 
     /**
@@ -657,14 +658,14 @@ public abstract class ExecutionStrategy {
     }
 
     @SuppressWarnings("SameReturnValue")
-    private Mono<Object> handleCoercionProblem(ExecutionContext context, ExecutionStrategyParameters parameters, CoercingSerializeException e) {
+    private Mono<ExecutionResult> handleCoercionProblem(ExecutionContext context, ExecutionStrategyParameters parameters, CoercingSerializeException e) {
         SerializationError error = new SerializationError(parameters.getPath(), e);
         log.warn(error.getMessage(), e);
         context.addError(error);
 
         parameters.deferredErrorSupport().onError(error);
 
-        return Mono.empty();
+        return NULL_EXECUTION_RESULT;
     }
 
     /**
@@ -677,7 +678,7 @@ public abstract class ExecutionStrategy {
      */
     protected Mono<Object> unboxPossibleOptional(Object result) {
         if (result instanceof Optional) {
-            Optional optional = (Optional) result;
+            Optional<?> optional = (Optional) result;
             return Mono.justOrEmpty(optional);
         } else if (result instanceof OptionalInt) {
             OptionalInt optional = (OptionalInt) result;
@@ -714,7 +715,6 @@ public abstract class ExecutionStrategy {
      *
      * @throws java.lang.ClassCastException if its not an Iterable
      */
-    @SuppressWarnings("unchecked")
     protected Iterable<Object> toIterable(Object result) {
         return FpKit.toCollection(result);
     }
@@ -858,7 +858,7 @@ public abstract class ExecutionStrategy {
      *
      * @throws NonNullableFieldWasNullException if a non null field resolves to a null value
      */
-    protected <T> Mono<T> assertNonNullFieldPrecondition(NonNullableFieldWasNullException e) throws NonNullableFieldWasNullException {
+    protected <T> Mono<T> assertNonNullFieldPrecondition(NonNullableFieldWasNullException e) {
         ExecutionTypeInfo typeInfo = e.getTypeInfo();
         if (typeInfo.hasParentType() && typeInfo.getParentTypeInfo().isNonNullType()) {
             return Mono.error(new NonNullableFieldWasNullException(e));
@@ -866,15 +866,9 @@ public abstract class ExecutionStrategy {
         return Mono.empty();
     }
 
-    protected void assertNonNullFieldPrecondition(NonNullableFieldWasNullException e, CompletableFuture<?> completableFuture) throws NonNullableFieldWasNullException {
-        ExecutionTypeInfo typeInfo = e.getTypeInfo();
-        if (typeInfo.hasParentType() && typeInfo.getParentTypeInfo().isNonNullType()) {
-            completableFuture.completeExceptionally(new NonNullableFieldWasNullException(e));
-        }
-    }
-
     protected Mono<ExecutionResult> handleNonNullException(Mono<ExecutionResult> result, ExecutionContext executionContext) {
         return result
+                // TODO is below needed?
                 .onErrorMap(CompletionException.class, Throwable::getCause)
                 .onErrorMap(t -> {
                     if (t instanceof NonNullableFieldWasNullException) {

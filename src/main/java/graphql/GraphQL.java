@@ -31,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static graphql.Assert.assertNotNull;
@@ -180,10 +179,6 @@ public class GraphQL {
 
     private static <T> T nvl(T obj, T elseObj) {
         return obj == null ? elseObj : obj;
-    }
-
-    private static InstrumentationState instrumentationState(Context c) {
-        return c.getOrDefault(InstrumentationState.class, null);
     }
 
     /**
@@ -397,7 +392,7 @@ public class GraphQL {
      * @return a promise to an {@link ExecutionResult} which can include errors
      */
     public Mono<ExecutionResult> executeAsync(ExecutionInput executionInput) {
-        return context(GraphQL::instrumentationState)
+        return instrumentationState()
                 .doOnSubscribe(s -> log.debug("Executing request. operation name: '{}'. query: '{}'. variables '{}'",
                                               executionInput.getOperationName(),
                                               executionInput.getQuery(),
@@ -415,14 +410,13 @@ public class GraphQL {
                 .onErrorResume(AbortExecutionException.class, e -> Mono.just(e.toExecutionResult()));
     }
 
+    public static Mono<InstrumentationState> instrumentationState() {
+        return Mono.subscriberContext().map(c -> c.get(InstrumentationState.class));
+    }
+
     private Context withNewInstrumentState(Context c) {
         return c.put(InstrumentationState.class, instrumentation.createState());
     }
-
-    private <T, R> Mono<R> context(Function<Context, R> transform) {
-        return Mono.subscriberContext().flatMap(c -> Mono.just(transform.apply(c)));
-    }
-
 
     private Mono<ExecutionResult> parseValidateAndExecute(ExecutionInput executionInput, GraphQLSchema graphQLSchema) {
         return Mono.just(executionInput.getQuery())
@@ -468,7 +462,7 @@ public class GraphQL {
     }
 
     private Mono<ParseResult> parse(ExecutionInput executionInput, GraphQLSchema graphQLSchema) {
-        return context(GraphQL::instrumentationState)
+        return instrumentationState()
                 .map(state -> new InstrumentationExecutionParameters(executionInput, graphQLSchema, state))
                 .map(instrumentation::beginParse)
                 .flatMap(ctx -> Mono.fromCallable(() -> new Parser().parseDocument(executionInput.getQuery()))
@@ -479,7 +473,7 @@ public class GraphQL {
     }
 
     private Mono<List<ValidationError>> validate(ExecutionInput executionInput, Document document, GraphQLSchema graphQLSchema) {
-        return context(GraphQL::instrumentationState)
+        return instrumentationState()
                 .map(state -> new InstrumentationValidationParameters(executionInput, document, graphQLSchema, state))
                 .map(instrumentation::beginValidation)
                 .flatMap(ctx -> Mono.fromCallable(() -> new Validator().validateDocument(graphQLSchema, document))
@@ -494,7 +488,7 @@ public class GraphQL {
         log.debug("Executing '{}'. operation name: '{}'. query: '{}'. variables '{}'", executionId,
                   executionInput.getOperationName(), executionInput.getQuery(), executionInput.getVariables());
         return execution
-                .execute(document, graphQLSchema, executionId, executionInput, null)
+                .execute(document, graphQLSchema, executionId, executionInput)
                 .doOnError(t -> log.error(
                         "Execution '{}' threw exception when executing : query : '{}'. variables '{}'",
                         executionId, executionInput.getQuery(), executionInput.getVariables(),

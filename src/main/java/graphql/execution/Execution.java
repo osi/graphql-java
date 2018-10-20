@@ -10,7 +10,6 @@ import graphql.Internal;
 import graphql.execution.defer.DeferSupport;
 import graphql.execution.instrumentation.Instrumentation;
 import graphql.execution.instrumentation.InstrumentationContext;
-import graphql.execution.instrumentation.InstrumentationState;
 import graphql.execution.instrumentation.parameters.InstrumentationExecuteOperationParameters;
 import graphql.execution.instrumentation.parameters.InstrumentationExecutionParameters;
 import graphql.language.Document;
@@ -55,7 +54,7 @@ public class Execution {
     }
 
     public Mono<ExecutionResult> execute(Document document, GraphQLSchema graphQLSchema, ExecutionId executionId,
-                                         ExecutionInput executionInput, InstrumentationState instrumentationState) {
+                                         ExecutionInput executionInput) {
         return Mono.defer(() -> {
             NodeUtil.GetOperationResult getOperationResult = NodeUtil.getOperation(document,
                                                                                    executionInput.getOperationName());
@@ -68,33 +67,37 @@ public class Execution {
 
             return Mono.fromCallable(
                     () -> valuesResolver.coerceArgumentValues(graphQLSchema, variableDefinitions, inputVariables))
-                       .flatMap(coercedVariables -> {
-                           ExecutionContext executionContext = newExecutionContextBuilder()
-                                   .instrumentation(instrumentation)
-                                   .instrumentationState(instrumentationState)
-                                   .executionId(executionId)
-                                   .graphQLSchema(graphQLSchema)
-                                   .queryStrategy(queryStrategy)
-                                   .mutationStrategy(mutationStrategy)
-                                   .subscriptionStrategy(subscriptionStrategy)
-                                   .context(executionInput.getContext())
-                                   .root(executionInput.getRoot())
-                                   .fragmentsByName(fragmentsByName)
-                                   .variables(coercedVariables)
-                                   .document(document)
-                                   .operationDefinition(operationDefinition)
-                                   .build();
-
-
-                           InstrumentationExecutionParameters parameters = new InstrumentationExecutionParameters(
-                                   executionInput, graphQLSchema, instrumentationState
-                           );
-                           executionContext = instrumentation.instrumentExecutionContext(executionContext, parameters);
-                           return executeOperation(executionContext, executionInput.getRoot(),
-                                                   executionContext.getOperationDefinition());
-                       })
-                       .onErrorResume(t -> t instanceof GraphQLError,
-                                      e -> Mono.just(new ExecutionResultImpl((GraphQLError) e)));
+                       .zipWith(GraphQL.instrumentationState(),
+                                (coercedVariables, instrumentationState) ->
+                                        newExecutionContextBuilder()
+                                                .instrumentation(instrumentation)
+                                                .instrumentationState(instrumentationState)
+                                                .executionId(executionId)
+                                                .graphQLSchema(graphQLSchema)
+                                                .queryStrategy(queryStrategy)
+                                                .mutationStrategy(mutationStrategy)
+                                                .subscriptionStrategy(subscriptionStrategy)
+                                                .context(executionInput.getContext())
+                                                .root(executionInput.getRoot())
+                                                .fragmentsByName(fragmentsByName)
+                                                .variables(coercedVariables)
+                                                .document(document)
+                                                .operationDefinition(operationDefinition)
+                                                .build())
+                       .map(executionContext -> instrumentation.instrumentExecutionContext(
+                               executionContext,
+                               new InstrumentationExecutionParameters(
+                                       executionInput,
+                                       graphQLSchema,
+                                       executionContext.getInstrumentationState()
+                               )))
+                       .flatMap(executionContext -> executeOperation(executionContext,
+                                                                     executionInput.getRoot(),
+                                                                     executionContext.getOperationDefinition()))
+                       // The abort needs to bubble all the way to the top
+                       .onErrorResume(t -> t instanceof GraphQLError && !(t instanceof AbortExecutionException),
+                                      e -> Mono.just(new ExecutionResultImpl((GraphQLError) e)))
+                    ;
         });
     }
 

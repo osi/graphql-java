@@ -120,7 +120,7 @@ class TestingInstrumentation implements Instrumentation {
     @Override
     Mono<ExecutionResult> instrumentExecutionResult(ExecutionResult executionResult, InstrumentationExecutionParameters parameters) {
         assert parameters.getInstrumentationState() == instrumentationState
-        return CompletableFuture.completedFuture(executionResult)
+        return Mono.just(executionResult)
     }
 }
 

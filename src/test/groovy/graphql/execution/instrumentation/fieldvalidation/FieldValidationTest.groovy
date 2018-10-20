@@ -1,19 +1,10 @@
 package graphql.execution.instrumentation.fieldvalidation
 
-import graphql.ExecutionInput
-import graphql.ExecutionResult
-import graphql.GraphQL
-import graphql.GraphQLError
-import graphql.TestUtil
-import graphql.execution.AbortExecutionException
-import graphql.execution.AsyncExecutionStrategy
-import graphql.execution.Execution
-import graphql.execution.ExecutionId
-import graphql.execution.ExecutionPath
-import graphql.execution.instrumentation.SimpleInstrumentation
+import graphql.*
+import graphql.execution.*
+import graphql.execution.instrumentation.InstrumentationState
+import reactor.util.context.Context
 import spock.lang.Specification
-
-import java.util.concurrent.CompletableFuture
 
 class FieldValidationTest extends Specification {
     def idl = """
@@ -300,14 +291,16 @@ class FieldValidationTest extends Specification {
     }
 
 
-    private CompletableFuture<ExecutionResult> setupExecution(FieldValidation validation, String query, Map<String, Object> variables) {
+    private ExecutionResult setupExecution(FieldValidation validation, String query, Map<String, Object> variables) {
         def document = TestUtil.parseQuery(query)
         def strategy = new AsyncExecutionStrategy()
         def instrumentation = new FieldValidationInstrumentation(validation)
         def execution = new Execution(strategy, strategy, strategy, instrumentation)
 
         def executionInput = ExecutionInput.newExecutionInput().query(query).variables(variables).build()
-        execution.execute(document, schema, ExecutionId.generate(), executionInput, SimpleInstrumentation.INSTANCE.createState())
+        execution.execute(document, schema, ExecutionId.generate(), executionInput)
+                .subscriberContext(Context.of(InstrumentationState.class, InstrumentationState.EMPTY))
+                .block()
     }
 
 }
