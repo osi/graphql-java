@@ -600,7 +600,7 @@ public abstract class ExecutionStrategy {
                        }
                        return Mono.just(serialized);
                    })
-                .transform(m -> asExecutionResult(m,executionContext, parameters));
+                   .transform(m -> asExecutionResult(m, executionContext, parameters));
     }
 
     /**
@@ -615,7 +615,7 @@ public abstract class ExecutionStrategy {
      */
     protected Mono<ExecutionResult> completeValueForEnum(ExecutionContext executionContext, ExecutionStrategyParameters parameters, GraphQLEnumType enumType, Object result) {
         return Mono.fromCallable(() -> enumType.getCoercing().serialize(result))
-                   .transform(m -> asExecutionResult(m,executionContext, parameters));
+                   .transform(m -> asExecutionResult(m, executionContext, parameters));
     }
 
     /**
@@ -858,6 +858,7 @@ public abstract class ExecutionStrategy {
      *
      * @throws NonNullableFieldWasNullException if a non null field resolves to a null value
      */
+    // TODO only used in tests - why?
     protected <T> Mono<T> assertNonNullFieldPrecondition(NonNullableFieldWasNullException e) {
         ExecutionTypeInfo typeInfo = e.getTypeInfo();
         if (typeInfo.hasParentType() && typeInfo.getParentTypeInfo().isNonNullType()) {
@@ -870,16 +871,16 @@ public abstract class ExecutionStrategy {
         return result
                 // TODO is below needed?
                 .onErrorMap(CompletionException.class, Throwable::getCause)
-                .onErrorMap(t -> {
-                    if (t instanceof NonNullableFieldWasNullException) {
-                        ExecutionTypeInfo typeInfo = ((NonNullableFieldWasNullException) t).getTypeInfo();
-                        return typeInfo.hasParentType() && typeInfo.getParentTypeInfo().isNonNullType();
-                    }
-                    return false;
-                }, t -> new NonNullableFieldWasNullException((NonNullableFieldWasNullException) t))
-                .onErrorResume(AbortExecutionException.class, ae -> Mono.just(ae.toExecutionResult()))
                 .onErrorResume(NonNullableFieldWasNullException.class,
-                               t -> Mono.just(new ExecutionResultImpl(null, executionContext.getErrors())));
+                               e -> {
+                                   ExecutionTypeInfo typeInfo = e.getTypeInfo();
+                                   if (typeInfo.hasParentType() && typeInfo.getParentTypeInfo().isNonNullType()) {
+                                       return Mono.error(new NonNullableFieldWasNullException(e));
+                                   }
+                                   return Mono.just(new ExecutionResultImpl(null, executionContext.getErrors()));
+                               }
+                )
+                .onErrorResume(AbortExecutionException.class, ae -> Mono.just(ae.toExecutionResult()));
     }
 
     /**
