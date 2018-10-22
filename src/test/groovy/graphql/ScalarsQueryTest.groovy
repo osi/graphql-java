@@ -71,7 +71,8 @@ class ScalarsQueryTest extends Specification {
         def result = GraphQL.newGraphQL(ScalarsQuerySchema.scalarsQuerySchema)
                 .build().execute(query)
         then:
-        thrown(GraphQLException)
+        result.data == expected
+        result.errors[0] instanceof SerializationError
     }
 
     def 'Escaped characters are handled'() {
