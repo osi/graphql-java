@@ -7,8 +7,10 @@ import graphql.parser.Parser
 import graphql.schema.DataFetcher
 import graphql.schema.GraphQLFieldDefinition
 import graphql.schema.GraphQLSchema
+import reactor.test.StepVerifier
 import spock.lang.Specification
 
+import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.ReentrantLock
@@ -95,8 +97,10 @@ class AsyncSerialExecutionStrategyTest extends Specification {
 
 
         then:
-        result.isDone()
-        result.get().data == ['hello': 'world1', 'hello2': 'world2', 'hello3': 'world3']
+        StepVerifier.create(result)
+                .assertNext({ d -> assert d.data == ['hello': 'world1', 'hello2': 'world2', 'hello3': 'world3'] })
+                .expectComplete()
+                .verify(Duration.ofMillis(10))
     }
 
     @SuppressWarnings("GroovyAssignabilityCheck")
@@ -134,8 +138,7 @@ class AsyncSerialExecutionStrategyTest extends Specification {
 
         AsyncSerialExecutionStrategy strategy = new AsyncSerialExecutionStrategy()
         when:
-        def result = strategy.execute(executionContext, executionStrategyParameters)
-
+        def result = strategy.execute(executionContext, executionStrategyParameters).toFuture()
 
         then:
         !result.isDone()
