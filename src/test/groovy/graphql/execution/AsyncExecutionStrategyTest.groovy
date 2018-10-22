@@ -11,18 +11,20 @@ import graphql.parser.Parser
 import graphql.schema.DataFetcher
 import graphql.schema.GraphQLFieldDefinition
 import graphql.schema.GraphQLSchema
+import reactor.core.publisher.Mono
+import reactor.test.StepVerifier
 import spock.lang.Specification
 
+import java.time.Duration
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.CompletionException
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.ReentrantLock
+import java.util.function.Supplier
 
 import static graphql.Scalars.GraphQLString
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition
 import static graphql.schema.GraphQLObjectType.newObject
 import static graphql.schema.GraphQLSchema.newSchema
-import static org.awaitility.Awaitility.await
 
 class AsyncExecutionStrategyTest extends Specification {
 
@@ -92,9 +94,7 @@ class AsyncExecutionStrategyTest extends Specification {
 
 
         then:
-        result.isDone()
-        result.get().data == ['hello': 'world1', 'hello2': 'world2']
-
+        result.block().data == ['hello': 'world1', 'hello2': 'world2']
     }
 
     def "execution with already completed futures"() {
@@ -128,20 +128,17 @@ class AsyncExecutionStrategyTest extends Specification {
         when:
         def result = asyncExecutionStrategy.execute(executionContext, executionStrategyParameters)
 
-
         then:
-        result.isDone()
-        result.get().data == ['hello': 'world', 'hello2': 'world2']
+        StepVerifier.create(result)
+                .assertNext({ d -> assert d.data == ['hello': 'world', 'hello2': 'world2'] })
+                .expectComplete()
+                .verify(Duration.ofMillis(10))
     }
 
     def "async execution"() {
         GraphQLSchema schema = schema(
-                { env -> CompletableFuture.completedFuture("world") },
-                { env ->
-                    CompletableFuture.supplyAsync({ ->
-                        Thread.sleep(100)
-                        "world2"
-                    })
+                { env -> Mono.just("world") },
+                { env -> Mono.just("world2").delaySubscription(Duration.ofMillis(100))
                 }
         )
         String query = "{hello, hello2}"
@@ -165,15 +162,18 @@ class AsyncExecutionStrategyTest extends Specification {
                 .build()
 
         AsyncExecutionStrategy asyncExecutionStrategy = new AsyncExecutionStrategy()
-        when:
-        def result = asyncExecutionStrategy.execute(executionContext, executionStrategyParameters)
 
+        when:
+        Supplier<Mono<ExecutionResult>> scenarioSupplier = { ->
+            asyncExecutionStrategy.execute(executionContext, executionStrategyParameters)
+        }
 
         then:
-        !result.isDone()
-        await().until({ result.isDone() })
-        result.get().data == ['hello': 'world', 'hello2': 'world2']
-
+        StepVerifier.withVirtualTime(scenarioSupplier)
+                .expectSubscription()
+                .expectNoEvent(Duration.ofMillis(100))
+                .assertNext({ result -> assert result.data == ['hello': 'world', 'hello2': 'world2'] })
+                .verifyComplete()
     }
 
     def "exception while fetching data"() {
@@ -209,11 +209,14 @@ class AsyncExecutionStrategyTest extends Specification {
 
 
         then:
-        result.isDone()
-        result.get().data == ['hello': 'world', 'hello2': null]
-        result.get().getErrors().size() == 1
-        result.get().getErrors().get(0).errorType == ErrorType.DataFetchingException
-
+        StepVerifier.create(result)
+                .assertNext({ d ->
+            assert d.data == ['hello': 'world', 'hello2': null]
+            assert d.getErrors().size() == 1
+            assert d.getErrors().get(0).errorType == ErrorType.DataFetchingException
+        })
+                .expectComplete()
+                .verify(Duration.ofMillis(10))
     }
 
     def "exception in instrumentation while combining data"() {
@@ -234,22 +237,22 @@ class AsyncExecutionStrategyTest extends Specification {
                 .executionId(ExecutionId.generate())
                 .operationDefinition(operation)
                 .instrumentation(new SimpleInstrumentation() {
+            @Override
+            ExecutionStrategyInstrumentationContext beginExecutionStrategy(InstrumentationExecutionStrategyParameters parameters) {
+                return new ExecutionStrategyInstrumentationContext() {
+
                     @Override
-                    ExecutionStrategyInstrumentationContext beginExecutionStrategy(InstrumentationExecutionStrategyParameters parameters) {
-                        return new ExecutionStrategyInstrumentationContext() {
-
-                            @Override
-                            void onFieldValuesInfo(List<FieldValueInfo> fieldValueInfoList) {
-                                throw new RuntimeException("Exception raised from instrumentation")
-                            }
-
-                            @Override
-                            public void onCompleted(ExecutionResult result, Throwable t) {
-
-                            }
-                        }
+                    void onFieldValuesInfo(List<FieldValueInfo> fieldValueInfoList) {
+                        throw new RuntimeException("Exception raised from instrumentation")
                     }
-                })
+
+                    @Override
+                    void onCompleted(ExecutionResult result, Throwable t) {
+
+                    }
+                }
+            }
+        })
                 .build()
         ExecutionStrategyParameters executionStrategyParameters = ExecutionStrategyParameters
                 .newParameters()
@@ -261,15 +264,10 @@ class AsyncExecutionStrategyTest extends Specification {
         when:
         def result = asyncExecutionStrategy.execute(executionContext, executionStrategyParameters)
 
-        then: "result should be completed"
-        result.isCompletedExceptionally()
-
-        when:
-        result.join()
-
-        then: "exceptions thrown from the instrumentation should be bubbled up"
-        def ex = thrown(CompletionException)
-        ex.cause.message == "Exception raised from instrumentation"
+        then:
+        StepVerifier.create(result)
+                .expectErrorMessage("Exception raised from instrumentation")
+                .verify()
     }
 
 
