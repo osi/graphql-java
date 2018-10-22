@@ -497,70 +497,71 @@ public abstract class ExecutionStrategy {
      * @return a {@link FieldValueInfo}
      */
     protected Mono<FieldValueInfo> completeValueForList(ExecutionContext executionContext, ExecutionStrategyParameters parameters, Iterable<Object> iterableValues) {
+        return Mono.defer(() -> {
+            Collection<Object> values = FpKit.toCollection(iterableValues);
+            ExecutionTypeInfo typeInfo = parameters.getTypeInfo();
+            GraphQLList fieldType = typeInfo.castType(GraphQLList.class);
+            GraphQLFieldDefinition fieldDef = parameters.getTypeInfo().getFieldDefinition();
+            Field field = parameters.getTypeInfo().getField();
 
-        Collection<Object> values = FpKit.toCollection(iterableValues);
-        ExecutionTypeInfo typeInfo = parameters.getTypeInfo();
-        GraphQLList fieldType = typeInfo.castType(GraphQLList.class);
-        GraphQLFieldDefinition fieldDef = parameters.getTypeInfo().getFieldDefinition();
-        Field field = parameters.getTypeInfo().getField();
+            InstrumentationFieldCompleteParameters instrumentationParams = new InstrumentationFieldCompleteParameters(
+                    executionContext, parameters, fieldDef, fieldTypeInfo(parameters, fieldDef), values);
+            Instrumentation instrumentation = executionContext.getInstrumentation();
 
-        InstrumentationFieldCompleteParameters instrumentationParams = new InstrumentationFieldCompleteParameters(
-                executionContext, parameters, fieldDef, fieldTypeInfo(parameters, fieldDef), values);
-        Instrumentation instrumentation = executionContext.getInstrumentation();
+            InstrumentationContext<ExecutionResult> completeListCtx = instrumentation.beginFieldListComplete(
+                    instrumentationParams
+            );
 
-        InstrumentationContext<ExecutionResult> completeListCtx = instrumentation.beginFieldListComplete(
-                instrumentationParams
-        );
+            return Flux.<Mono<FieldValueInfo>>push(sink -> {
+                int index = 0;
+                for (Object item : values) {
+                    int finalIndex = index + 1;
+                    ExecutionPath indexedPath = parameters.getPath().segment(finalIndex);
 
-        return Flux.fromIterable(values)
-                   .index((l, item) -> {
-                       int index = Math.toIntExact(l);
-                       ExecutionPath indexedPath = parameters.getPath().segment(index);
+                    ExecutionTypeInfo wrappedTypeInfo = ExecutionTypeInfo.newTypeInfo()
+                                                                         .parentInfo(typeInfo)
+                                                                         .type(fieldType.getWrappedType())
+                                                                         .path(indexedPath)
+                                                                         .fieldDefinition(fieldDef)
+                                                                         .field(field)
+                                                                         .build();
 
-                       ExecutionTypeInfo wrappedTypeInfo = ExecutionTypeInfo.newTypeInfo()
-                                                                            .parentInfo(typeInfo)
-                                                                            .type(fieldType.getWrappedType())
-                                                                            .path(indexedPath)
-                                                                            .fieldDefinition(fieldDef)
-                                                                            .field(field)
-                                                                            .build();
+                    NonNullableFieldValidator nonNullableFieldValidator = new NonNullableFieldValidator(
+                            executionContext,
+                            wrappedTypeInfo);
 
-                       NonNullableFieldValidator nonNullableFieldValidator = new NonNullableFieldValidator(
-                               executionContext,
-                               wrappedTypeInfo);
+                    ExecutionStrategyParameters newParameters =
+                            parameters.transform(builder -> builder.typeInfo(wrappedTypeInfo)
+                                                                   .nonNullFieldValidator(nonNullableFieldValidator)
+                                                                   .listSize(values.size())
+                                                                   .currentListIndex(finalIndex)
+                                                                   .path(indexedPath)
+                                                                   .source(item));
+                    sink.next(completeValue(executionContext, newParameters));
+                }
 
-                       ExecutionStrategyParameters newParameters = parameters.transform(builder ->
-                                                                                                builder.typeInfo(
-                                                                                                        wrappedTypeInfo)
-                                                                                                       .nonNullFieldValidator(
-                                                                                                               nonNullableFieldValidator)
-                                                                                                       .listSize(
-                                                                                                               values.size())
-                                                                                                       .currentListIndex(
-                                                                                                               index)
-                                                                                                       .path(indexedPath)
-                                                                                                       .source(item)
-                       );
-                       return completeValue(executionContext, newParameters);
-                   })
-                   .flatMapSequential(Function.identity())
-                   .collectList()
-                   .map(fieldValueInfos -> {
-                       Mono<ExecutionResult> overallResult = Flux.fromIterable(fieldValueInfos)
-                                                                 .flatMapSequential(
-                                                                         i -> handleNonNullException(i.getFieldValue(),
-                                                                                                     executionContext))
-                                                                 .map(ExecutionResult::getData)
-                                                                 .collectList()
-                               .<ExecutionResult>map(
-                                       completedResults -> new ExecutionResultImpl(completedResults, null))
-                               .transform(completeListCtx::instrument);
+                sink.complete();
+            })
+                       .flatMapSequential(Function.identity())
+                       .collectList()
+                       .map(fieldValueInfos -> {
+                           Mono<ExecutionResult> overallResult = Flux.fromIterable(fieldValueInfos)
+                                                                     .flatMapSequential(
+                                                                             i -> handleNonNullException(
+                                                                                     i.getFieldValue(),
+                                                                                     executionContext))
+                                                                     .map(ExecutionResult::getData)
+                                                                     .collectList()
+                                   .<ExecutionResult>map(
+                                           completedResults -> new ExecutionResultImpl(completedResults, null))
+                                   .transform(completeListCtx::instrument);
 
-                       return FieldValueInfo.newFieldValueInfo(LIST)
-                                            .fieldValue(overallResult)
-                                            .fieldValueInfos(fieldValueInfos)
-                                            .build();
-                   });
+                           return FieldValueInfo.newFieldValueInfo(LIST)
+                                                .fieldValue(overallResult)
+                                                .fieldValueInfos(fieldValueInfos)
+                                                .build();
+                       });
+        });
     }
 
     private Mono<ExecutionResult> asExecutionResult(Mono<Object> result,
